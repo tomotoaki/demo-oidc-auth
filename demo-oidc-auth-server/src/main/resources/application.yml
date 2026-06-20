@@ -1,0 +1,50 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v2
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: demo-client
+            client-secret: demo-secret
+            authorization-grant-type: authorization_code
+            scope: openid, profile, email
+            # redirect-uri はデフォルト値を使用:
+            # {baseUrl}/login/oauth2/code/{registrationId}
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8180/realms/demo
+      resourceserver:
+        jwt:
+          # JwtDecoder の自動構成に使用
+          issuer-uri: http://localhost:8180/realms/demo
+
+  # Spring Session JDBC: セッションをDBに永続化
+  session:
+    store-type: jdbc
+    jdbc:
+      initialize-schema: always  # 起動時にSPRING_SESSIONテーブルを自動作成
+
+  # H2 インメモリDB (ローカル実行用 / PostgreSQLモード)
+  datasource:
+    url: jdbc:h2:mem:demodb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # H2 コンソール (デバッグ用)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+logging:
+  file:
+    name: ${LOG_FILE:logs/application.log}
+  level:
+    org.springframework.security: DEBUG
+    com.example.demoidcauth: DEBUG
