@@ -16,10 +16,17 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 
 @Configuration
 @EnableWebSecurity
@@ -67,7 +74,7 @@ public class SecurityConfig {
             )
             .exceptionHandling(exceptions -> exceptions
                 .defaultAuthenticationEntryPointFor(
-                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                    jwtAuthenticationEntryPoint(),
                     request -> request.getRequestURI().startsWith("/api/v2/user")
                 )
             )
@@ -93,5 +100,28 @@ public class SecurityConfig {
         authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
 
         return authorizedClientManager;
+    }
+
+    @Bean
+    public AuthenticationEntryPoint jwtAuthenticationEntryPoint() {
+        return new AuthenticationEntryPoint() {
+            private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
+            @Override
+            public void commence(HttpServletRequest request, HttpServletResponse response,
+                    AuthenticationException authException) throws IOException, ServletException {
+                // トークン検証エラーの詳細をログに出力
+                Throwable cause = authException.getCause();
+                log.error("JWT Authentication failed. Exception type: {}, Message: {}",
+                    authException.getClass().getSimpleName(), authException.getMessage());
+                if (cause != null) {
+                    log.error("Caused by: {} - {}", cause.getClass().getSimpleName(), cause.getMessage());
+                }
+                // 401 Unauthorized を返す
+                response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\": \"Unauthorized\"}");
+            }
+        };
     }
 }

@@ -3,9 +3,9 @@
   "enabled": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionIdleTimeout": 300,
   "ssoSessionMaxLifespan": 36000,
-  "accessTokenLifespan": 300,
+  "accessTokenLifespan": 60,
   "refreshTokenMaxReuse": 0,
   "revokeRefreshToken": false,
   "clients": [

@@ -25,7 +25,6 @@ spring:
 
   # Spring Session JDBC: セッションをDBに永続化
   session:
-    store-type: jdbc
     jdbc:
       initialize-schema: always  # 起動時にSPRING_SESSIONテーブルを自動作成
 
@@ -41,6 +40,11 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
+  jackson:
+    time-zone: Asia/Tokyo
+    # （オプション）時刻のフォーマットも指定したい場合
+    # date-format: yyyy-MM-dd HH:mm:ss
 
 logging:
   file:

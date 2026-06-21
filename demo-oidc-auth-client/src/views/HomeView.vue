@@ -22,7 +22,7 @@
       <h1 class="welcome-title">
         Welcome, <span class="gradient-text">{{ user.preferred_username || 'User' }}</span>!
       </h1>
-      
+
       <p class="status-msg">
         OIDCによる認証に成功しました。ブラウザとServerの間ではセッションCookie（SESSION）のみがやり取りされています。
       </p>
@@ -43,12 +43,22 @@
       </div>
 
       <div class="action-buttons">
+        <button @click="checkAccessToken" class="outline-btn check-btn" style="margin-right:0.5rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 11c0 1.657-1.343 3-3 3s-3-1.343-3-3 1.343-3 3-3 3 1.343 3 3zM21 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2" />
+          </svg>
+          API呼び出し（トークン確認）
+        </button>
+
         <button @click="logout" class="outline-btn logout-btn">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
           </svg>
           ログアウト
         </button>
+      </div>
+      <div v-if="tokenCheckMessage" class="token-check-result" style="margin-top:1rem;text-align:center;">
+        <p>{{ tokenCheckMessage }}</p>
       </div>
     </div>
   </div>
@@ -92,6 +102,41 @@ const logout = () => {
 
 const retry = () => {
   fetchUser();
+};
+
+const tokenCheckMessage = ref('');
+
+const checkAccessToken = async () => {
+  tokenCheckMessage.value = '確認中...';
+  try {
+    const res = await fetch('http://localhost:8080/api/v2/user', {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (res.status === 401) {
+      tokenCheckMessage.value = 'アクセストークンが期限切れまたは無効です（401）。ログインが必要です。';
+      return;
+    }
+
+    if (!res.ok) {
+      tokenCheckMessage.value = `APIエラー: HTTP ${res.status}`;
+      return;
+    }
+
+    const data = await res.json();
+    // サーバーはデバッグ用に all_claims を返している
+    const expJst = data.expJst || (data.all_claims?.exp ? new Date(data.all_claims.exp * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : null);
+    if (expJst) {
+      tokenCheckMessage.value = `アクセストークンは有効です。期限: ${expJst}`;
+    } else {
+      tokenCheckMessage.value = 'アクセストークンは有効です（期限情報がありません）。';
+    }
+  } catch (e) {
+    console.error(e);
+    tokenCheckMessage.value = 'ネットワークエラーが発生しました。コンソールを確認してください。';
+  }
 };
 
 onMounted(() => {

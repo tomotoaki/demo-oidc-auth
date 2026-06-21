@@ -5,6 +5,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @RestController
@@ -20,6 +22,12 @@ public class UserController {
         claims.put("preferred_username", jwt.getClaimAsString("preferred_username") != null ? jwt.getClaimAsString("preferred_username") : "");
         claims.put("email", jwt.getClaimAsString("email") != null ? jwt.getClaimAsString("email") : "");
         claims.put("all_claims", jwt.getClaims()); // デバッグ用: すべてのクレームを出力
+        claims.put("exp", jwt.getExpiresAt() != null ? jwt.getExpiresAt().getEpochSecond() : null);
+        claims.put("iat", jwt.getIssuedAt() != null ? jwt.getIssuedAt().getEpochSecond() : null);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Tokyo"));
+        claims.put("expJst", jwt.getExpiresAt() != null ? formatter.format(jwt.getExpiresAt()) : null);
+        claims.put("iatJst", jwt.getIssuedAt() != null ? formatter.format(jwt.getIssuedAt()) : null);
         return claims;
     }
 }
