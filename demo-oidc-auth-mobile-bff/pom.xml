@@ -20,6 +20,8 @@
     <properties>
         <java.version>25</java.version>
         <spring-boot.admin.port>9002</spring-boot.admin.port>
+        <skip.e2e>true</skip.e2e>
+        <e2e.groups>none</e2e.groups>
     </properties>
 
     <dependencies>
@@ -54,6 +56,12 @@
             <artifactId>selenium-java</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>1.45.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -61,57 +69,63 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <jmxPort>${spring-boot.admin.port}</jmxPort>
+                    <skip>${skip.e2e}</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>start-mobile-bff</id>
+                        <goals>
+                            <goal>start</goal>
+                        </goals>
+                        <phase>pre-integration-test</phase>
+                    </execution>
+                    <execution>
+                        <id>stop-mobile-bff</id>
+                        <goals>
+                            <goal>stop</goal>
+                        </goals>
+                        <phase>post-integration-test</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <groups>${e2e.groups}</groups>
+                    <skip>${skip.e2e}</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
 
     <profiles>
         <profile>
-            <id>e2e</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-failsafe-plugin</artifactId>
-                        <configuration>
-                            <includes>
-                                <include>**/*IT.java</include>
-                            </includes>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>integration-test</goal>
-                                    <goal>verify</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.springframework.boot</groupId>
-                        <artifactId>spring-boot-maven-plugin</artifactId>
-                        <configuration>
-                            <jmxPort>9002</jmxPort>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>start-mobile-bff</id>
-                                <goals>
-                                    <goal>start</goal>
-                                </goals>
-                                <phase>pre-integration-test</phase>
-                            </execution>
-                            <execution>
-                                <id>stop-mobile-bff</id>
-                                <goals>
-                                    <goal>stop</goal>
-                                </goals>
-                                <phase>post-integration-test</phase>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
+            <id>e2e-selenium</id>
+            <properties>
+                <skip.e2e>false</skip.e2e>
+                <e2e.groups>selenium</e2e.groups>
+            </properties>
+        </profile>
+        <profile>
+            <id>e2e-playwright</id>
+            <properties>
+                <skip.e2e>false</skip.e2e>
+                <e2e.groups>playwright</e2e.groups>
+            </properties>
         </profile>
     </profiles>
 </project>

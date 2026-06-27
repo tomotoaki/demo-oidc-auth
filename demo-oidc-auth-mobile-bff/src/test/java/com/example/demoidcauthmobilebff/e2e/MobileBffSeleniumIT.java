@@ -1,6 +1,7 @@
 package com.example.demoidcauthmobilebff.e2e;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
@@ -16,17 +17,32 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Selenium WebDriver を使用した Mobile/App BFF の自動E2Eテスト。
+ * 
+ * このテストでは以下の認証およびAPI呼び出しのフローを検証します：
+ * 1. BFFの認証開始エンドポイントへアクセスする。
+ * 2. 未認証の場合、Keycloak (IdP) のログイン画面へリダイレクトされるため、テストユーザーの認証情報を入力してログインする。
+ * 3. ログイン成功後、BFFへリダイレクトされてBFFとのセッションが確立されたことを検証する。
+ * 4. BFF経由でリソースサーバーのAPIを呼び出すエンドポイントへアクセスする。
+ * 5. BFFがセッションのアクセストークンをToken Exchangeし、リソースサーバーのAPIを呼び出して正しいユーザー情報を取得できることを検証する。
+ */
+@Tag("selenium")
 class MobileBffSeleniumIT {
 
     private WebDriver driver;
 
     @AfterEach
     void tearDown() {
+        // テスト毎に WebDriver のブラウザセッションを破棄してクリーンアップ
         if (driver != null) {
             driver.quit();
         }
     }
 
+    /**
+     * BFFログインからToken Exchangeを経由したリソースサーバーAPIの呼び出しまでの一連のフローをテストします。
+     */
     @Test
     void loginAndCallResourceServerApiViaTokenExchange() {
         driver = new ChromeDriver(chromeOptions());
@@ -36,9 +52,12 @@ class MobileBffSeleniumIT {
         String username = systemProperty("keycloak.username", "demo");
         String password = systemProperty("keycloak.password", "demo");
 
+        // 1. BFFのOAuth2認可開始エンドポイントへアクセス
         driver.get(baseUrl + "/oauth2/authorization/keycloak");
 
+        // 2. ログインフォームが表示されるか、もしくはすでにログイン済みで認証結果が表示されるかを待機
         if (waitUntilLoginFormOrAuthenticated(wait).equals("login")) {
+            // ログイン画面が表示された場合、Keycloakの入力フィールドに資格情報を入力して送信
             WebElement usernameInput = wait.until(ExpectedConditions.elementToBeClickable(By.id("username")));
             usernameInput.clear();
             usernameInput.sendKeys(username);
@@ -46,11 +65,17 @@ class MobileBffSeleniumIT {
             driver.findElement(By.id("kc-login")).click();
         }
 
+        // 3. BFFのセッションレスポンス (JSON) にて、正しく認証状態になっているかを検証
+        // bodyText に "authenticated":true および preferredUsername に "demo" が含まれていることを確認
         waitUntil(wait, webDriver -> bodyTextContainsIgnoringWhitespace("\"authenticated\":true"), "BFF session response");
         assertThat(bodyTextWithoutWhitespace()).contains("\"preferredUsername\":\"demo\"");
 
+        // 4. BFFが提供するリソースサーバーAPIのプロキシエンドポイント (api/user) へアクセス
+        // ここにアクセスすると、BFFは内部でToken Exchangeを起動してリソースサーバーのAPIを呼び出します
         driver.get(baseUrl + "/api/user");
 
+        // 5. リソースサーバーから返却されたレスポンスを検証
+        // Token Exchangeフロー ("authorization_code+token_exchange") が正しく適用されていることを確認
         waitUntil(wait, webDriver -> bodyTextContainsIgnoringWhitespace("\"resourceServerUser\""), "resource server response");
         assertThat(bodyTextWithoutWhitespace())
             .contains("\"flow\":\"authorization_code+token_exchange\"")

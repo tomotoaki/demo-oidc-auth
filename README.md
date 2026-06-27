@@ -245,24 +245,60 @@ npm run dev
 
 ### Mobile/App BFF の自動E2E確認
 
-Keycloak、Server、Mobile/App BFFを起動した状態で、Selenium + JUnitのE2Eテストを実行できます。Chromeがインストールされている環境を想定しています。
+Keycloak、Server、Mobile/App BFFを起動した状態で、E2Eテストを実行できます。Chromeがインストールされている環境を想定しています。
+
+#### Selenium + JUnit でのE2E確認
 
 ```cmd
 cd demo-oidc-auth-mobile-bff
-./mvnw.cmd -Pe2e verify
+./mvnw.cmd -Pe2e-selenium verify
 ```
 
 ```bash
 cd demo-oidc-auth-mobile-bff
-./mvnw -Pe2e verify
+./mvnw -Pe2e-selenium verify
 ```
 
 ブラウザを表示して確認したい場合は、以下のように実行します。
 
 ```cmd
-./mvnw.cmd -Pe2e verify -Dbff.e2e.headless=false
+./mvnw.cmd -Pe2e-selenium verify -Dbff.e2e.headless=false
 ```
 
 ```bash
-./mvnw -Pe2e verify -Dbff.e2e.headless=false
+./mvnw -Pe2e-selenium verify -Dbff.e2e.headless=false
+```
+
+#### Playwright + JUnit でのE2E確認
+
+Playwright を使用した同様のテストも実装しています。以下の手順で実行できます。
+
+```cmd
+cd demo-oidc-auth-mobile-bff
+./mvnw.cmd -Pe2e-playwright verify
+```
+
+```bash
+cd demo-oidc-auth-mobile-bff
+./mvnw -Pe2e-playwright verify
+```
+
+ブラウザを表示して確認したい場合は、以下のように実行します。
+
+```cmd
+./mvnw.cmd -Pe2e-playwright verify -Dbff.e2e.headless=false
+```
+
+```bash
+./mvnw -Pe2e-playwright verify -Dbff.e2e.headless=false
+```
+
+または、特定のテストクラスを指定して実行することもできます。
+
+```cmd
+./mvnw.cmd -Pe2e-playwright verify -Dtest=MobileBffPlaywrightIT
+```
+
+```bash
+./mvnw -Pe2e-playwright verify -Dtest=MobileBffPlaywrightIT
 ```
