@@ -6,6 +6,7 @@ OIDC認証のサンプルコード
 |---|---|
 | Client (SPA) | Vue.js 3 + Vite + Axios |
 | Server | Spring Boot 4.1 (Spring Security 7) |
+| Mobile/App BFF | Spring Boot 4.1 (Spring Security 7) |
 | IdP | Keycloak 26.6.3 |
 | Java | Amazon Corretto 25 |
 | DB (ローカル) | H2 (PostgreSQLモード) |
@@ -31,11 +32,21 @@ OIDC認証のサンプルコード
 - CORS設定でClientオリジン (`http://localhost:5173`) を許可する (CORS設定サンプルを兼ねる)。
 - DBはPostgreSQLとする。ただし、ローカル実行時はH2をPostgreSQLモードで利用する。
 
+### Mobile/App BFF (Spring Boot)
+- スマホ・タブレットアプリからのアクセス確認用に、既存Serverとは別のBFFとして提供する。
+- アプリからAPI Serverへ直接アクセスせず、BFFのSession Cookie経由で認証状態を管理する。
+- BFFはKeycloakの `demo-mobile-bff` クライアントで認証する。
+- BFFはログイン済みセッションのAccess TokenをToken Exchangeし、交換後のAccess Tokenで `demo-oidc-auth-server` のAPIを呼び出す。
+- サンプル名は用途が分かるよう `demo-oidc-auth-mobile-bff` としている。
+
 ### IdP (Keycloak 26.6.3)
-- demoレルム、demo-client、demoユーザをインポートする。
+- demoレルム、demo-client、demo-mobile-bff、demo-oidc-auth-server、demoユーザをインポートする。
 - `http://localhost:8180` で起動する。
 - `demo-client` のリダイレクトURIに `http://localhost:8080/login/oauth2/code/keycloak` を設定する。
 - `demo-client` のWeb Origins (CORS許可) に `http://localhost:5173` を設定する。
+- `demo-mobile-bff` のリダイレクトURIに `http://localhost:8081/mobile-bff/login/oauth2/code/keycloak` を設定する。
+- `demo-mobile-bff` は Keycloak で `serviceAccountsEnabled=true` および `standard.token.exchange.enabled=true` を有効にしておく必要がある。
+- `demo-oidc-auth-server` は bearer-only クライアントとして定義され、Token Exchange の結果として発行されたアクセストークンを受け取る。
 
 ## 構成
 
@@ -171,13 +182,35 @@ Java 25 (Amazon Corretto) が利用可能であることを確認してくださ
 cd demo-oidc-auth-server
 ./mvnw.cmd spring-boot:run
 ```
-(Unix/Bash環境の場合は `./mvnw spring-boot:run` を使用してください)
+
+```bash
+cd demo-oidc-auth-server
+./mvnw spring-boot:run
+```
 
 サーバーは `http://localhost:8080` で起動します。
 
 ---
 
-### 3. Client (Vue.js) の起動
+### 3. Mobile/App BFF (Spring Boot) の起動
+
+別ターミナルで起動します。
+
+```cmd
+cd demo-oidc-auth-mobile-bff
+./mvnw.cmd spring-boot:run
+```
+
+```bash
+cd demo-oidc-auth-mobile-bff
+./mvnw spring-boot:run
+```
+
+Mobile/App BFFは `http://localhost:8081/mobile-bff` で起動します。
+
+---
+
+### 4. Client (Vue.js) の起動
 
 ```cmd
 cd demo-oidc-auth-client
@@ -199,3 +232,37 @@ npm run dev
    - パスワード: `demo`
 5. ログインが成功すると、SPAのホーム画面（`http://localhost:5173/`）にリダイレクトされ、Keycloakから取得したユーザー情報が表示されます。
 6. **「ログアウト」**ボタンをクリックするとセッションが破棄され、再びログイン画面へ戻ります。
+
+### Mobile/App BFF の動作確認
+
+1. Keycloak、Server、Mobile/App BFFを起動します。
+2. ブラウザまたはアプリ内ブラウザで `http://localhost:8081/mobile-bff/oauth2/authorization/keycloak` にアクセスします。
+3. `demo` / `demo` でログインします。
+4. 認証後、`http://localhost:8081/mobile-bff/api/session` でBFFのログイン状態を確認します。
+5. `http://localhost:8081/mobile-bff/api/user` にアクセスし、BFFがToken Exchange後のAccess Tokenで `demo-oidc-auth-server` の `/api/v2/user` を呼び出せることを確認します。
+
+実機のスマホ・タブレットから確認する場合は、`localhost` をPCのLAN内IPアドレスに置き換え、KeycloakのRedirect URI/Web Originsも同じホスト名に合わせて追加してください。
+
+### Mobile/App BFF の自動E2E確認
+
+Keycloak、Server、Mobile/App BFFを起動した状態で、Selenium + JUnitのE2Eテストを実行できます。Chromeがインストールされている環境を想定しています。
+
+```cmd
+cd demo-oidc-auth-mobile-bff
+./mvnw.cmd -Pe2e verify
+```
+
+```bash
+cd demo-oidc-auth-mobile-bff
+./mvnw -Pe2e verify
+```
+
+ブラウザを表示して確認したい場合は、以下のように実行します。
+
+```cmd
+./mvnw.cmd -Pe2e verify -Dbff.e2e.headless=false
+```
+
+```bash
+./mvnw -Pe2e verify -Dbff.e2e.headless=false
+```

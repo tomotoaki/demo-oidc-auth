@@ -1,0 +1,50 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /mobile-bff
+    session:
+      cookie:
+        name: MOBILE_BFF_SESSION
+        same-site: lax
+
+spring:
+  application:
+    name: demo-oidc-auth-mobile-bff
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: demo-mobile-bff
+            client-secret: demo-mobile-bff-secret
+            authorization-grant-type: authorization_code
+            scope: openid, profile, email
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8180/realms/demo
+
+  session:
+    jdbc:
+      initialize-schema: always
+
+  datasource:
+    url: jdbc:h2:mem:mobilebffdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+app:
+  oauth2:
+    token-exchange:
+      token-uri: http://localhost:8180/realms/demo/protocol/openid-connect/token
+      requested-token-type: urn:ietf:params:oauth:token-type:access_token
+  resource-server:
+    user-info-uri: http://localhost:8080/api/v2/user
+  client:
+    success-redirect-uri: http://localhost:8081/mobile-bff/api/session
+    logout-success-uri: http://localhost:8081/mobile-bff/logged-out
+
+logging:
+  level:
+    org.springframework.security: INFO
+    com.example.demoidcauthmobilebff: DEBUG

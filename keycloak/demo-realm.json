@@ -43,6 +43,60 @@
         "offline_access",
         "microprofile-jwt"
       ]
+    },
+    {
+      "clientId": "demo-mobile-bff",
+      "name": "demo-mobile-bff",
+      "description": "Spring Boot BFF for smartphone/tablet app access",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "demo-mobile-bff-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "redirectUris": [
+        "http://localhost:8081/mobile-bff/login/oauth2/code/keycloak"
+      ],
+      "webOrigins": [
+        "http://localhost:8081"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8081/mobile-bff/*",
+        "standard.token.exchange.enabled": "true"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "demo-oidc-auth-server",
+      "name": "demo-oidc-auth-server",
+      "description": "Audience client for the resource server API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "attributes": {
+        "standard.token.exchange.enabled": "true"
+      }
     }
   ],
   "users": [
