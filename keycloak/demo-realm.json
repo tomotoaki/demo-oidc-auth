@@ -8,6 +8,18 @@
   "accessTokenLifespan": 60,
   "refreshTokenMaxReuse": 0,
   "revokeRefreshToken": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "管理者ロール - スイッチユーザー権限を持つ"
+      },
+      {
+        "name": "USER",
+        "description": "一般ユーザーロール"
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "demo-client",
@@ -28,7 +40,8 @@
         "http://localhost:5173"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:5173"
+        "post.logout.redirect.uris": "http://localhost:5173",
+        "standard.token.exchange.enabled": "true"
       },
       "defaultClientScopes": [
         "web-origins",
@@ -113,7 +126,24 @@
           "value": "demo",
           "temporary": false
         }
-      ]
+      ],
+      "realmRoles": ["USER"]
+    },
+    {
+      "username": "admin",
+      "email": "admin@example.com",
+      "firstName": "Admin",
+      "lastName": "User",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["ADMIN"]
     }
   ]
 }
