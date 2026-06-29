@@ -55,7 +55,7 @@ public class MobileBffController {
         String exchangedAccessToken = tokenExchangeService.exchange(authentication, request, response);
         return Map.of(
             "bff", Map.of(
-                "client", "demo-mobile-bff",
+                "client", "demo-oidc-auth-mobile-bff",
                 "flow", "authorization_code + token_exchange"
             ),
             "resourceServerUser", resourceServerClient.fetchUser(exchangedAccessToken)

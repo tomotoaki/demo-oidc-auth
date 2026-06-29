@@ -15,8 +15,8 @@ spring:
       client:
         registration:
           keycloak:
-            client-id: demo-mobile-bff
-            client-secret: demo-mobile-bff-secret
+            client-id: demo-oidc-auth-mobile-bff
+            client-secret: demo-oidc-auth-mobile-bff-secret
             authorization-grant-type: authorization_code
             scope: openid, profile, email
         provider:
@@ -38,6 +38,7 @@ app:
     token-exchange:
       token-uri: http://localhost:8180/realms/demo/protocol/openid-connect/token
       requested-token-type: urn:ietf:params:oauth:token-type:access_token
+      audience: demo-oidc-auth-server
   resource-server:
     user-info-uri: http://localhost:8080/api/v2/user
   client:

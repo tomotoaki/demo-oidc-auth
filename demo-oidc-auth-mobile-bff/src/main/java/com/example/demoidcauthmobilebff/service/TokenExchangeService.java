@@ -22,6 +22,7 @@ public class TokenExchangeService {
     private final RestClient restClient;
     private final String tokenUri;
     private final String requestedTokenType;
+    private final String audience;
     private final String clientId;
     private final String clientSecret;
 
@@ -31,6 +32,7 @@ public class TokenExchangeService {
             RestClient.Builder restClientBuilder,
             @Value("${app.oauth2.token-exchange.token-uri}") String tokenUri,
             @Value("${app.oauth2.token-exchange.requested-token-type}") String requestedTokenType,
+            @Value("${app.oauth2.token-exchange.audience}") String audience,
             @Value("${spring.security.oauth2.client.registration.keycloak.client-id}") String clientId,
             @Value("${spring.security.oauth2.client.registration.keycloak.client-secret}") String clientSecret) {
         this.authorizedClientService = authorizedClientService;
@@ -38,6 +40,7 @@ public class TokenExchangeService {
         this.restClient = restClientBuilder.build();
         this.tokenUri = tokenUri;
         this.requestedTokenType = requestedTokenType;
+        this.audience = audience;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
     }
@@ -74,6 +77,9 @@ public class TokenExchangeService {
         form.add("subject_token", authorizedClient.getAccessToken().getTokenValue());
         form.add("subject_token_type", "urn:ietf:params:oauth:token-type:access_token");
         form.add("requested_token_type", requestedTokenType);
+        if (audience != null && !audience.isBlank()) {
+            form.add("audience", audience);
+        }
 
         TokenExchangeResponse tokenExchangeResponse = restClient.post()
             .uri(tokenUri)

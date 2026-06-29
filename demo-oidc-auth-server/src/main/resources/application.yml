@@ -9,8 +9,8 @@ spring:
       client:
         registration:
           keycloak:
-            client-id: demo-client
-            client-secret: demo-secret
+            client-id: demo-oidc-auth-client-bff
+            client-secret: demo-oidc-auth-client-bff-secret
             authorization-grant-type: authorization_code
             scope: openid, profile, email
             # redirect-uri はデフォルト値を使用:
@@ -51,4 +51,5 @@ logging:
     name: ${LOG_FILE:logs/application.log}
   level:
     org.springframework.security: DEBUG
+    org.springframework.session: DEBUG
     com.example.demoidcauth: DEBUG

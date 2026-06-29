@@ -22,12 +22,12 @@
   },
   "clients": [
     {
-      "clientId": "demo-client",
-      "name": "demo-client",
+      "clientId": "demo-oidc-auth-client-bff",
+      "name": "demo-oidc-auth-client-bff",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "demo-secret",
+      "secret": "demo-oidc-auth-client-bff-secret",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -58,13 +58,13 @@
       ]
     },
     {
-      "clientId": "demo-mobile-bff",
-      "name": "demo-mobile-bff",
+      "clientId": "demo-oidc-auth-mobile-bff",
+      "name": "demo-oidc-auth-mobile-bff",
       "description": "Spring Boot BFF for smartphone/tablet app access",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
-      "secret": "demo-mobile-bff-secret",
+      "secret": "demo-oidc-auth-mobile-bff-secret",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -80,6 +80,18 @@
         "post.logout.redirect.uris": "http://localhost:8081/mobile-bff/*",
         "standard.token.exchange.enabled": "true"
       },
+      "protocolMappers": [
+        {
+          "name": "audience-demo-oidc-auth-server",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "demo-oidc-auth-server",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
       "defaultClientScopes": [
         "web-origins",
         "acr",

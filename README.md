@@ -35,17 +35,17 @@ OIDC認証のサンプルコード
 ### Mobile/App BFF (Spring Boot)
 - スマホ・タブレットアプリからのアクセス確認用に、既存Serverとは別のBFFとして提供する。
 - アプリからAPI Serverへ直接アクセスせず、BFFのSession Cookie経由で認証状態を管理する。
-- BFFはKeycloakの `demo-mobile-bff` クライアントで認証する。
+- BFFはKeycloakの `demo-oidc-auth-mobile-bff` クライアントで認証する。
 - BFFはログイン済みセッションのAccess TokenをToken Exchangeし、交換後のAccess Tokenで `demo-oidc-auth-server` のAPIを呼び出す。
 - サンプル名は用途が分かるよう `demo-oidc-auth-mobile-bff` としている。
 
 ### IdP (Keycloak 26.6.3)
-- demoレルム、demo-client、demo-mobile-bff、demo-oidc-auth-server、demoユーザをインポートする。
+- demoレルム、demo-oidc-auth-client-bff、demo-oidc-auth-mobile-bff、demo-oidc-auth-server、demoユーザをインポートする。
 - `http://localhost:8180` で起動する。
-- `demo-client` のリダイレクトURIに `http://localhost:8080/login/oauth2/code/keycloak` を設定する。
-- `demo-client` のWeb Origins (CORS許可) に `http://localhost:5173` を設定する。
-- `demo-mobile-bff` のリダイレクトURIに `http://localhost:8081/mobile-bff/login/oauth2/code/keycloak` を設定する。
-- `demo-mobile-bff` は Keycloak で `serviceAccountsEnabled=true` および `standard.token.exchange.enabled=true` を有効にしておく必要がある。
+- `demo-oidc-auth-client-bff` のリダイレクトURIに `http://localhost:8080/login/oauth2/code/keycloak` を設定する。
+- `demo-oidc-auth-client-bff` のWeb Origins (CORS許可) に `http://localhost:5173` を設定する。
+- `demo-oidc-auth-mobile-bff` のリダイレクトURIに `http://localhost:8081/mobile-bff/login/oauth2/code/keycloak` を設定する。
+- `demo-oidc-auth-mobile-bff` は Keycloak で `serviceAccountsEnabled=true` および `standard.token.exchange.enabled=true` を有効にしておく必要がある。
 - `demo-oidc-auth-server` は bearer-only クライアントとして定義され、Token Exchange の結果として発行されたアクセストークンを受け取る。
 
 ## 構成
@@ -337,4 +337,3 @@ OIDC / OAuth2 環境下における異なるなりすましアプローチの比
 2. 画面上部に緑色のなりすましバナーが表示され、ユーザー表示が `demo` に切り替わります。
 3. ユーザー情報の「ユーザーID (sub)」欄が `demo` ユーザーの本物のUUIDになり、**「実際のJWT username」も `demo` に切り替わっていること**を確認します。
 4. 「元に戻す」ボタンをクリックし、元の `admin` 表示に戻ることを確認します。
-

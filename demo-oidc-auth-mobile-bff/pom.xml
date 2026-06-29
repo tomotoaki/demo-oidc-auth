@@ -69,13 +69,13 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <jmxPort>${spring-boot.admin.port}</jmxPort>
-                    <skip>${skip.e2e}</skip>
-                </configuration>
                 <executions>
                     <execution>
                         <id>start-mobile-bff</id>
+                        <configuration>
+                            <jmxPort>${spring-boot.admin.port}</jmxPort>
+                            <skip>${skip.e2e}</skip>
+                        </configuration>
                         <goals>
                             <goal>start</goal>
                         </goals>
@@ -83,6 +83,10 @@
                     </execution>
                     <execution>
                         <id>stop-mobile-bff</id>
+                        <configuration>
+                            <jmxPort>${spring-boot.admin.port}</jmxPort>
+                            <skip>${skip.e2e}</skip>
+                        </configuration>
                         <goals>
                             <goal>stop</goal>
                         </goals>
