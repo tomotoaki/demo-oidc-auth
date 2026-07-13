@@ -61,6 +61,7 @@ public class SecurityConfig {
             OAuth2AuthorizedClientProviderBuilder.builder()
                 .authorizationCode()
                 .refreshToken()
+                .clientCredentials()
                 .build();
 
         DefaultOAuth2AuthorizedClientManager authorizedClientManager =

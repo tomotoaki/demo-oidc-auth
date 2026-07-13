@@ -90,6 +90,27 @@ class MobileBffPlaywrightIT {
                 .contains("\"preferred_username\":\"demo\"");
     }
 
+    @Test
+    void callClientCredentialsApiWithCertHeader() {
+        context = browser.newContext(new Browser.NewContextOptions()
+            .setExtraHTTPHeaders(java.util.Map.of("X-Amzn-Mtls-Clientcert-Subject", "CN=demo1@example.com")));
+        page = context.newPage();
+        page.setViewportSize(1280, 900);
+
+        String baseUrl = systemProperty("bff.base-url", "http://localhost:8081/mobile-bff");
+
+        // 1. APIへアクセス
+        page.navigate(baseUrl + "/api/client-credentials");
+
+        // 2. レスポンスの検証
+        page.waitForFunction("() => document.body.innerText.includes('\"client_credentials\"')", null, new Page.WaitForFunctionOptions().setTimeout(20000));
+        assertThat(bodyTextWithoutWhitespace())
+                .contains("\"cn\":\"demo1@example.com\"")
+                .contains("\"flow\":\"client_credentials\"")
+                .contains("\"tokenValue\":")
+                .contains("\"resourceServerResponse\":");
+    }
+
     private String waitUntilLoginFormOrAuthenticated(Page page) {
         long timeout = 20000; // 20 seconds
         long startTime = System.currentTimeMillis();

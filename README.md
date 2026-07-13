@@ -337,3 +337,37 @@ OIDC / OAuth2 環境下における異なるなりすましアプローチの比
 2. 画面上部に緑色のなりすましバナーが表示され、ユーザー表示が `demo` に切り替わります。
 3. ユーザー情報の「ユーザーID (sub)」欄が `demo` ユーザーの本物のUUIDになり、**「実際のJWT username」も `demo` に切り替わっていること**を確認します。
 4. 「元に戻す」ボタンをクリックし、元の `admin` 表示に戻ることを確認します。
+
+## クライアントクレデンシャルズフロー (mTLS 証明書連携)
+
+本アプリでは、API Gateway や ALB 経由で渡されるクライアント証明書のサブジェクトDN (`X-Amzn-Mtls-Clientcert-Subject` ヘッダ) に基づき、クライアントごとに動的に OAuth2 クライアントを切り替えて Client Credentials Flow を実行する実装サンプルが含まれています。
+
+### 実装方針
+- **設定によるクライアント管理**: `application.yml` の `app.client-credentials.clients` に、証明書の CN (Common Name) と Keycloak の `client-id` / `client-secret` のマッピングを定義します。
+- **動的トークン取得**: `/api/client-credentials` エンドポイントで `X-Amzn-Mtls-Clientcert-Subject` ヘッダから `CN=` の値を抽出し、マップから対応する認証情報を取得します。
+- **直接トークン要求**: Spring Security の静的なプロバイダ登録ではなく、`RestClient` を用いて Keycloak のトークンエンドポイントへ直接 `client_credentials` グラントのリクエストを送信します。
+- **エラーハンドリング**: 未登録の CN やヘッダが存在しない場合は、`ResponseStatusException` により HTTP 403 (Forbidden) を返却します。
+- **リソースサーバー呼び出し**: 取得したアクセストークンを用いて、自動的に `demo-oidc-auth-server` のAPI (`/api/v2/user`) を呼び出し、結果を合わせて返却します。
+
+### 実行方法
+
+**1. curlコマンドによる手動確認**
+Keycloak、Server、Mobile/App BFF が起動している状態で、以下のコマンドを実行します。
+```bash
+curl -H "X-Amzn-Mtls-Clientcert-Subject: CN=demo1@example.com" http://localhost:8081/mobile-bff/api/client-credentials
+```
+
+**2. 自動E2Eテストでの実行**
+Selenium または Playwright を用いたテストケース (`callClientCredentialsApiWithCertHeader`) にて動作検証が可能です。ブラウザ操作では通常追加できないカスタムリクエストヘッダを、Chrome DevTools Protocol (CDP) や Playwright の API を利用して差し込み、テストを実行しています。
+
+- Playwright の場合
+```bash
+cd demo-oidc-auth-mobile-bff
+./mvnw -Pe2e-playwright verify -Dtest=MobileBffPlaywrightIT#callClientCredentialsApiWithCertHeader
+```
+
+- Selenium の場合
+```bash
+cd demo-oidc-auth-mobile-bff
+./mvnw -Pe2e-selenium verify -Dtest=MobileBffSeleniumIT#callClientCredentialsApiWithCertHeader
+```
