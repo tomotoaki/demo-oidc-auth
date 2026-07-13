@@ -34,6 +34,15 @@ spring:
     password:
 
 app:
+  client-credentials:
+    token-uri: http://localhost:8180/realms/demo/protocol/openid-connect/token
+    clients:
+      "[demo1@example.com]":
+        client-id: demo-oidc-auth-mobile-bff
+        client-secret: demo-oidc-auth-mobile-bff-secret
+      "[demo2@example.com]":
+        client-id: demo-oidc-auth-mobile-bff
+        client-secret: demo-oidc-auth-mobile-bff-secret
   oauth2:
     token-exchange:
       token-uri: http://localhost:8180/realms/demo/protocol/openid-connect/token
@@ -46,6 +55,8 @@ app:
     logout-success-uri: http://localhost:8081/mobile-bff/logged-out
 
 logging:
+  file:
+    name: ${LOG_FILE:logs/application.log}
   level:
-    org.springframework.security: INFO
+    org.springframework.security: DEBUG
     com.example.demoidcauthmobilebff: DEBUG

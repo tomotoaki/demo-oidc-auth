@@ -30,7 +30,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/logged-out", "/error").permitAll()
+                .requestMatchers("/", "/logged-out", "/error", "/api/client-credentials").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().authenticated()
             )
@@ -61,6 +61,7 @@ public class SecurityConfig {
             OAuth2AuthorizedClientProviderBuilder.builder()
                 .authorizationCode()
                 .refreshToken()
+                .clientCredentials()
                 .build();
 
         DefaultOAuth2AuthorizedClientManager authorizedClientManager =

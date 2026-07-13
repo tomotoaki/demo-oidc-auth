@@ -82,6 +82,30 @@ class MobileBffSeleniumIT {
             .contains("\"preferred_username\":\"demo\"");
     }
 
+    @Test
+    void callClientCredentialsApiWithCertHeader() {
+        driver = new ChromeDriver(chromeOptions());
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+
+        String baseUrl = systemProperty("bff.base-url", "http://localhost:8081/mobile-bff");
+
+        // 1. CDP を使って Extra HTTP Headers を設定
+        ((ChromeDriver) driver).executeCdpCommand("Network.enable", java.util.Map.of());
+        ((ChromeDriver) driver).executeCdpCommand("Network.setExtraHTTPHeaders", 
+            java.util.Map.of("headers", java.util.Map.of("X-Amzn-Mtls-Clientcert-Subject", "CN=demo1@example.com")));
+
+        // 2. APIへアクセス
+        driver.get(baseUrl + "/api/client-credentials");
+
+        // 3. レスポンスの確認
+        waitUntil(wait, webDriver -> bodyTextContainsIgnoringWhitespace("\"client_credentials\""), "client credentials response");
+        assertThat(bodyTextWithoutWhitespace())
+            .contains("\"cn\":\"demo1@example.com\"")
+            .contains("\"flow\":\"client_credentials\"")
+            .contains("\"tokenValue\":")
+            .contains("\"resourceServerResponse\":");
+    }
+
     private static ChromeOptions chromeOptions() {
         ChromeOptions options = new ChromeOptions();
         if (Boolean.parseBoolean(systemProperty("bff.e2e.headless", "true"))) {
