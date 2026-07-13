@@ -97,7 +97,7 @@ class MobileBffPlaywrightIT {
         page = context.newPage();
         page.setViewportSize(1280, 900);
 
-        String baseUrl = systemProperty("bff.base-url", "http://localhost:8081/mobile-bff");
+        String baseUrl = systemProperty("bff.base-url", "http://127.0.0.1:8081/mobile-bff");
 
         // 1. APIへアクセス
         page.navigate(baseUrl + "/api/client-credentials");
