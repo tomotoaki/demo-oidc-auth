@@ -37,6 +37,7 @@ OIDC認証のサンプルコード
 - アプリからAPI Serverへ直接アクセスせず、BFFのSession Cookie経由で認証状態を管理する。
 - BFFはKeycloakの `demo-oidc-auth-mobile-bff` クライアントで認証する。
 - BFFはログイン済みセッションのAccess TokenをToken Exchangeし、交換後のAccess Tokenで `demo-oidc-auth-server` のAPIを呼び出す。
+- API Gateway等を経由した外部システムからのアクセス向けに、クライアント証明書のDNに基づいたClient Credentials Flowも提供する。
 - サンプル名は用途が分かるよう `demo-oidc-auth-mobile-bff` としている。
 
 ### IdP (Keycloak 26.6.3)
@@ -51,20 +52,23 @@ OIDC認証のサンプルコード
 ## 構成
 
 ServerはOPとRSを兼ねるため、以下構成図ではOP/RSを分けて記載する。
+BFFはToken ExchangeやClient Credentialsを利用してServer(RS)へアクセスする。
 
 ```mermaid
 flowchart TD
     %% クライアント環境
-    subgraph ClientEnv["クライアント側 (ブラウザ)"]
+    subgraph ClientEnv["クライアント側"]
         Client["Vue.js (SPA)<br/>※Session Cookieのみ保持"]
+        ExtClient["外部システム / API Gateway<br/>(mTLS証明書を付与)"]
     end
 
     %% バックエンド環境
     subgraph ServerEnv["サーバー側 (Spring Boot)"]
-        subgraph AP["Spring Boot アプリケーション"]
-            OP["OAuth2 Client<br/>(認証ハンドラ/OP)<br/>※IdP連携・トークン管理"]
-            RS["OAuth2 Resource Server<br/>(API提供/RS)<br/>※Cookie認証・トークン検証"]
+        subgraph AP["Spring Boot Server"]
+            OP["OAuth2 Client<br/>(認証ハンドラ/OP)"]
+            RS["OAuth2 Resource Server<br/>(API提供/RS)"]
         end
+        BFF["Mobile/App BFF<br/>(Client Credentials / Token Exchange)"]
         DB[("データベース<br/>(H2 / PostgreSQL)")]
     end
 
@@ -77,7 +81,11 @@ flowchart TD
     Client <-->|"① APIリクエスト / 認証リクエスト<br/>(Session Cookie経由)"| AP
     Client -.->|"② ブラウザ経由のリダイレクト<br/>(ログイン画面・認可画面表示)"| IdP
     OP <-->|"③ トークン要求 / 検証<br/>(バックチャネル通信)"| IdP
-    AP <-->|"④ セッション永続化<br/>(Spring Session JDBC)"| DB
+    AP <-->|"④ セッション永続化"| DB
+    
+    ExtClient -->|"⑤ mTLS証明書付きAPIリクエスト<br/>(X-Amzn-Mtls-Clientcert-Subject)"| BFF
+    BFF <-->|"⑥ Client Credentialsで<br/>トークン要求"| IdP
+    BFF -->|"⑦ 取得したトークンで<br/>APIリクエスト"| RS
 
     %% スタイリング
     classDef client fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
@@ -85,14 +93,16 @@ flowchart TD
     classDef db fill:#efebe9,stroke:#8d6e63,stroke-width:2px,color:#4e342e;
     classDef idp fill:#fff3e0,stroke:#fb8c00,stroke-width:2px,color:#e65100;
 
-    class Client client;
-    class OP,RS,AP server;
+    class Client,ExtClient client;
+    class OP,RS,AP,BFF server;
     class DB db;
     class IdP idp;
 ```
 
 
 ## シーケンス
+
+### 認可コードフロー (SPA)
 
 ```mermaid
 sequenceDiagram
@@ -120,6 +130,26 @@ sequenceDiagram
     
     Client->>Server_RS: リソース要求 (Session Cookieを付与)
     Server_RS-->>Client: リソースデータ提供
+```
+
+### クライアントクレデンシャルズフロー (外部システム → BFF → Server)
+
+```mermaid
+sequenceDiagram
+    participant ExtClient as 外部システム (API Gateway等)
+    participant BFF as Mobile/App BFF
+    participant IdP as IdP (Keycloak)
+    participant Server_RS as Server (OAuth2 Resource Server)
+
+    ExtClient->>BFF: APIリクエスト<br/>(X-Amzn-Mtls-Clientcert-Subject: CN=...)
+    
+    Note over BFF: ヘッダのCNから該当する<br/>Client ID / Secret を特定
+    BFF->>IdP: トークン要求<br/>(grant_type=client_credentials)
+    IdP-->>BFF: Access Token 返却
+    
+    BFF->>Server_RS: APIリクエスト<br/>(Authorization: Bearer <Access Token>)
+    Server_RS-->>BFF: リソースデータ提供
+    BFF-->>ExtClient: レスポンス返却
 ```
 
 ---
