@@ -41,6 +41,7 @@ import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
+@org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 public class SecurityConfig {
 
     /** Vue アプリのベース URL */
@@ -93,6 +94,9 @@ public class SecurityConfig {
                 .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
                 // ユーザー情報 API (認証必須)
                 .requestMatchers("/user/**").authenticated()
+                // グループ×クライアントロール 認可デモ API
+                // @PreAuthorize でメソッドレベル認可を使用するため、ここでは authenticated() のみ
+                .requestMatchers("/api/medical/**", "/api/nonmedical/**").authenticated()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
@@ -143,15 +147,22 @@ public class SecurityConfig {
     }
 
     /**
-     * Keycloak JWT の {@code realm_access.roles} を Spring Security の
-     * {@link GrantedAuthority} にマッピングする Converter。
-     * <p>例: Keycloak role "ADMIN" → {@code ROLE_ADMIN}</p>
+     * Keycloak JWT のロール情報を Spring Security の {@link GrantedAuthority} にマッピングする Converter。
+     *
+     * <h3>マッピング内容</h3>
+     * <ul>
+     *   <li>{@code realm_access.roles} → {@code ROLE_ロール名}（例: ROLE_ADMIN, ROLE_USER）</li>
+     *   <li>{@code groups} × {@code resource_access.demo-oidc-auth-server.roles} の組み合わせ
+     *       → {@code ROLE_グループ名_クライアントロール名}（例: ROLE_医療機関_医師）</li>
+     * </ul>
      */
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             List<GrantedAuthority> authorities = new ArrayList<>();
+
+            // ① realm_access.roles → ROLE_ロール名
             Map<String, Object> realmAccess = jwt.getClaim("realm_access");
             if (realmAccess != null) {
                 Object rolesObj = realmAccess.get("roles");
@@ -162,9 +173,45 @@ public class SecurityConfig {
                         .forEach(authorities::add);
                 }
             }
+
+            // ② groups クレームを取得
+            List<String> groups = extractStringList(jwt.getClaim("groups"));
+
+            // ③ resource_access.demo-oidc-auth-server.roles からクライアントロールを取得
+            List<String> clientRoles = List.of();
+            Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
+            if (resourceAccess != null) {
+                Object serverAccess = resourceAccess.get("demo-oidc-auth-server");
+                if (serverAccess instanceof Map<?, ?> serverMap) {
+                    clientRoles = extractStringList(serverMap.get("roles"));
+                }
+            }
+
+            // ④ groups × clientRoles の組み合わせで複合 ROLE_ を生成
+            // 例: 医療機関 × 医師 → ROLE_医療機関_医師
+            for (String group : groups) {
+                for (String clientRole : clientRoles) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + group + "_" + clientRole));
+                }
+            }
+
             return authorities;
         });
         return converter;
+    }
+
+    /**
+     * Object を {@code List<String>} に変換するユーティリティ。
+     * {@code Collection<?>} の各要素を String にキャストし、null を除外する。
+     */
+    private List<String> extractStringList(Object obj) {
+        if (obj instanceof Collection<?> col) {
+            return col.stream()
+                .filter(e -> e instanceof String)
+                .map(e -> (String) e)
+                .toList();
+        }
+        return List.of();
     }
 
     @Bean

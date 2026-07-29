@@ -18,8 +18,32 @@
         "name": "USER",
         "description": "一般ユーザーロール"
       }
-    ]
+    ],
+    "client": {
+      "demo-oidc-auth-server": [
+        {
+          "name": "医師",
+          "description": "医師ロール"
+        },
+        {
+          "name": "職員",
+          "description": "職員ロール"
+        }
+      ]
+    }
   },
+  "groups": [
+    {
+      "name": "医療機関",
+      "path": "/医療機関",
+      "subGroups": []
+    },
+    {
+      "name": "非医療機関",
+      "path": "/非医療機関",
+      "subGroups": []
+    }
+  ],
   "clients": [
     {
       "clientId": "demo-oidc-auth-client-bff",
@@ -43,6 +67,37 @@
         "post.logout.redirect.uris": "http://localhost:5173",
         "standard.token.exchange.enabled": "true"
       },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "client-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "foo",
+            "access.token.claim": "true",
+            "claim.name": "resource_access.${client_id}.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "multivalued": "true",
+            "usermodel.clientRoleMapping.clientId": "demo-oidc-auth-server"
+          }
+        }
+      ],
       "defaultClientScopes": [
         "web-origins",
         "acr",
@@ -89,6 +144,35 @@
             "included.client.audience": "demo-oidc-auth-server",
             "id.token.claim": "false",
             "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "name": "client-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "foo",
+            "access.token.claim": "true",
+            "claim.name": "resource_access.${client_id}.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "multivalued": "true",
+            "usermodel.clientRoleMapping.clientId": "demo-oidc-auth-server"
           }
         }
       ],
@@ -156,6 +240,86 @@
         }
       ],
       "realmRoles": ["ADMIN"]
+    },
+    {
+      "username": "医療機関-医師",
+      "email": "doctor-medical@example.com",
+      "firstName": "医師",
+      "lastName": "医療機関",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"],
+      "groups": ["/医療機関"],
+      "clientRoles": {
+        "demo-oidc-auth-server": ["医師"]
+      }
+    },
+    {
+      "username": "医療機関-職員",
+      "email": "staff-medical@example.com",
+      "firstName": "職員",
+      "lastName": "医療機関",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"],
+      "groups": ["/医療機関"],
+      "clientRoles": {
+        "demo-oidc-auth-server": ["職員"]
+      }
+    },
+    {
+      "username": "非医療機関-医師",
+      "email": "doctor-nonmedical@example.com",
+      "firstName": "医師",
+      "lastName": "非医療機関",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"],
+      "groups": ["/非医療機関"],
+      "clientRoles": {
+        "demo-oidc-auth-server": ["医師"]
+      }
+    },
+    {
+      "username": "非医療機関-職員",
+      "email": "staff-nonmedical@example.com",
+      "firstName": "職員",
+      "lastName": "非医療機関",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["USER"],
+      "groups": ["/非医療機関"],
+      "clientRoles": {
+        "demo-oidc-auth-server": ["職員"]
+      }
     }
   ]
 }

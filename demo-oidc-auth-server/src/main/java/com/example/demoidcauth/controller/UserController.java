@@ -47,9 +47,13 @@ public class UserController {
 
         Map<String, Object> claims = new HashMap<>();
 
-        // ─── ロール情報 (共通) ──────────────────────────────────────────────────
+        // ─── ロール情報 (共通) ───────────────────────────────────────────────────────────────────
         List<String> roles = extractRolesFromJwt(jwt);
         claims.put("roles", roles);
+
+        // ─── グループ・クライアントロール情報 (共通) ────────────────────────────────────────
+        claims.put("groups", extractGroupsFromJwt(jwt));
+        claims.put("client_roles", extractClientRolesFromJwt(jwt));
 
         // ─── スイッチユーザー状態の判定 ─────────────────────────────────────────
         if (authentication instanceof SwitchedJwtAuthenticationToken switched) {
@@ -116,30 +120,84 @@ public class UserController {
         claims.put("actual_jwt_username", jwt.getClaimAsString("preferred_username"));
     }
 
-    // ─── ユーティリティ ──────────────────────────────────────────────────────────
+    // ─── ユーティリティ ────────────────────────────────────────────────────────────────────────
 
     /**
-     * JWT の {@code realm_access.roles} から {@code ROLE_} プレフィックス付きロールリストを返す。
+     * JWT の {@code realm_access.roles} から {@code ROLE_} プレフィックス付きリールリストを返す。
+     * また、{@code groups} × {@code resource_access.demo-oidc-auth-server.roles} の複合ロールも包含する。
      */
     @SuppressWarnings("unchecked")
     private List<String> extractRolesFromJwt(Jwt jwt) {
+        List<String> result = new ArrayList<>();
+
+        // realm_access.roles
         Map<String, Object> realmAccess = jwt.getClaim("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-        Object roles = realmAccess.get("roles");
-        if (roles instanceof Collection<?> roleList) {
-            List<String> result = new ArrayList<>();
-            for (Object r : roleList) {
-                if (r instanceof String role) {
-                    // Keycloak の内部ロール (offline_access, uma_authorization 等) は除外
-                    if (!role.startsWith("default-roles-") && !role.equals("offline_access")
-                            && !role.equals("uma_authorization")) {
-                        result.add("ROLE_" + role);
+        if (realmAccess != null) {
+            Object roles = realmAccess.get("roles");
+            if (roles instanceof Collection<?> roleList) {
+                for (Object r : roleList) {
+                    if (r instanceof String role) {
+                        // Keycloak の内部ロール (offline_access, uma_authorization 等) は除外
+                        if (!role.startsWith("default-roles-") && !role.equals("offline_access")
+                                && !role.equals("uma_authorization")) {
+                            result.add("ROLE_" + role);
+                        }
                     }
                 }
             }
+        }
+
+        // groups × resource_access の複合ロール
+        List<String> groups = extractGroupsFromJwt(jwt);
+        List<String> clientRoles = extractClientRolesFromJwt(jwt);
+        for (String group : groups) {
+            for (String clientRole : clientRoles) {
+                result.add("ROLE_" + group + "_" + clientRole);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * JWT の {@code groups} クレームを返す。
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> extractGroupsFromJwt(Jwt jwt) {
+        Object groups = jwt.getClaim("groups");
+        if (groups instanceof Collection<?> groupList) {
+            List<String> result = new ArrayList<>();
+            for (Object g : groupList) {
+                if (g instanceof String group) {
+                    result.add(group);
+                }
+            }
             return result;
+        }
+        return List.of();
+    }
+
+    /**
+     * JWT の {@code resource_access.demo-oidc-auth-server.roles} からクライアントロールリストを返す。
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> extractClientRolesFromJwt(Jwt jwt) {
+        Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
+        if (resourceAccess == null) {
+            return List.of();
+        }
+        Object serverAccess = resourceAccess.get("demo-oidc-auth-server");
+        if (serverAccess instanceof Map<?, ?> serverMap) {
+            Object roles = serverMap.get("roles");
+            if (roles instanceof Collection<?> roleList) {
+                List<String> result = new ArrayList<>();
+                for (Object r : roleList) {
+                    if (r instanceof String role) {
+                        result.add(role);
+                    }
+                }
+                return result;
+            }
         }
         return List.of();
     }

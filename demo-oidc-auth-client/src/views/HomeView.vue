@@ -152,6 +152,69 @@
         <div v-if="switchError" class="switch-error">{{ switchError }}</div>
       </div>
 
+      <!-- ── 認可デモパネル (グループ×クライアントロール) ───────────────────── -->
+      <div class="auth-demo-panel">
+        <div class="auth-demo-header">
+          <span class="auth-demo-icon">🔐</span>
+          <h3>グループ×ロール 認可デモ</h3>
+        </div>
+        <p class="auth-demo-desc">
+          各ボタンをクリックして、ログイン中のユーザーがアクセスできるエンドポイントを確認できます。
+          <span class="auth-demo-user">現在: <strong>{{ user.preferred_username }}</strong></span>
+        </p>
+
+        <!-- グループ・クライアントロール情報 -->
+        <div v-if="user.groups && user.groups.length > 0" class="auth-info-row">
+          <span class="auth-info-label">所属グループ:</span>
+          <span class="auth-info-value">{{ user.groups.join(', ') }}</span>
+        </div>
+        <div v-if="user.client_roles && user.client_roles.length > 0" class="auth-info-row">
+          <span class="auth-info-label">クライアントロール:</span>
+          <span class="auth-info-value">{{ user.client_roles.join(', ') }}</span>
+        </div>
+
+        <div class="auth-grid">
+          <div
+            v-for="ep in AUTH_ENDPOINTS"
+            :key="ep.key"
+            class="auth-card"
+            :class="ep.color"
+          >
+            <div class="auth-card-top">
+              <span class="auth-card-icon">{{ ep.icon }}</span>
+              <div class="auth-card-info">
+                <div class="auth-card-label">{{ ep.label }}</div>
+                <div class="auth-card-role">{{ ep.role }}</div>
+                <code class="auth-card-endpoint">{{ ep.desc }}</code>
+              </div>
+              <div class="auth-card-badge" :class="hasRequiredRole(ep.role) ? 'badge-ok' : 'badge-ng'">
+                {{ hasRequiredRole(ep.role) ? '✓ 持っている' : '✕ ない' }}
+              </div>
+            </div>
+
+            <button
+              :id="'auth-btn-' + ep.key"
+              @click="callAuthEndpoint(ep)"
+              class="auth-call-btn"
+              :disabled="authLoading[ep.key]"
+            >
+              <span v-if="authLoading[ep.key]">呼び出し中...</span>
+              <span v-else>API呼び出し</span>
+            </button>
+
+            <!-- 結果表示 -->
+            <div v-if="authResults[ep.key]" class="auth-result" :class="authResults[ep.key].ok ? 'result-ok' : 'result-ng'">
+              <span v-if="authResults[ep.key].ok">
+                ✅ 成功！アクセス可
+              </span>
+              <span v-else>
+                🚫 {{ authResults[ep.key].msg }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -172,6 +235,8 @@ const user = ref({
   preferred_username: '',
   email: '',
   roles: [],
+  groups: [],
+  client_roles: [],
   is_switched: false,
   switched_from: null,
   switch_method: null,
@@ -188,16 +253,19 @@ const isAdmin = computed(() =>
   (user.value.roles || []).includes('ROLE_ADMIN')
 );
 
-/** ROLE_ADMIN / ROLE_USER など表示用ロールのみ */
+/** 表示用ロール：internal Keycloak ロールを除外し、複合ロールも含む */
 const displayRoles = computed(() =>
   (user.value.roles || []).filter(r =>
     r === 'ROLE_ADMIN' || r === 'ROLE_USER' || r === 'ROLE_PREVIOUS_ADMINISTRATOR'
+    || r.startsWith('ROLE_医療機関_') || r.startsWith('ROLE_非医療機関_')
   )
 );
 
 const getRoleBadgeClass = (role) => {
   if (role === 'ROLE_ADMIN') return 'badge-admin';
   if (role === 'ROLE_PREVIOUS_ADMINISTRATOR') return 'badge-prev-admin';
+  if (role.includes('医療機関')) return 'badge-medical';
+  if (role.includes('非医療機関')) return 'badge-nonmedical';
   return 'badge-user';
 };
 
@@ -307,6 +375,77 @@ const checkAccessToken = async () => {
   } catch (e) {
     console.error(e);
     tokenCheckMessage.value = 'ネットワークエラーが発生しました。コンソールを確認してください。';
+  }
+};
+
+// ─── 認可デモ ───────────────────────────────────────────────────────────────────
+
+const AUTH_ENDPOINTS = [
+  {
+    key: 'medical-doctor',
+    label: '医療機関 × 医師',
+    role: 'ROLE_医療機関_医師',
+    url: 'http://localhost:8080/api/v2/api/medical/doctor',
+    color: 'medical-doctor',
+    icon: '🏥',
+    desc: '/api/medical/doctor',
+  },
+  {
+    key: 'medical-staff',
+    label: '医療機関 × 職員',
+    role: 'ROLE_医療機関_職員',
+    url: 'http://localhost:8080/api/v2/api/medical/staff',
+    color: 'medical-staff',
+    icon: '📖',
+    desc: '/api/medical/staff',
+  },
+  {
+    key: 'nonmedical-doctor',
+    label: '非医療機関 × 医師',
+    role: 'ROLE_非医療機関_医師',
+    url: 'http://localhost:8080/api/v2/api/nonmedical/doctor',
+    color: 'nonmedical-doctor',
+    icon: '🏛️',
+    desc: '/api/nonmedical/doctor',
+  },
+  {
+    key: 'nonmedical-staff',
+    label: '非医療機関 × 職員',
+    role: 'ROLE_非医療機関_職員',
+    url: 'http://localhost:8080/api/v2/api/nonmedical/staff',
+    color: 'nonmedical-staff',
+    icon: '💼',
+    desc: '/api/nonmedical/staff',
+  },
+];
+
+const authResults = ref({});
+const authLoading = ref({});
+
+const hasRequiredRole = (role) => (user.value.roles || []).includes(role);
+
+const callAuthEndpoint = async (ep) => {
+  authLoading.value[ep.key] = true;
+  authResults.value[ep.key] = null;
+  try {
+    const res = await fetch(ep.url, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authResults.value[ep.key] = { ok: true, data };
+    } else if (res.status === 403) {
+      authResults.value[ep.key] = { ok: false, status: 403, msg: 'アクセス拒否 (403 Forbidden)　—　必要なロールがありません' };
+    } else if (res.status === 401) {
+      authResults.value[ep.key] = { ok: false, status: 401, msg: '未認証 (401 Unauthorized)' };
+    } else {
+      authResults.value[ep.key] = { ok: false, status: res.status, msg: `HTTP ${res.status}` };
+    }
+  } catch (e) {
+    authResults.value[ep.key] = { ok: false, msg: 'ネットワークエラー' };
+  } finally {
+    authLoading.value[ep.key] = false;
   }
 };
 
@@ -750,5 +889,240 @@ onMounted(() => {
 .retry-btn {
   margin-top: 1.5rem;
   width: 100%;
+}
+
+/* ─── 複合ロールバッジ ─────────────────────────────────────────── */
+.badge-medical {
+  background: rgba(6, 182, 212, 0.15);
+  border: 1px solid rgba(6, 182, 212, 0.5);
+  color: #22d3ee;
+}
+
+.badge-nonmedical {
+  background: rgba(251, 146, 60, 0.15);
+  border: 1px solid rgba(251, 146, 60, 0.5);
+  color: #fb923c;
+}
+
+/* ─── 認可デモパネル ──────────────────────────────────────────── */
+.auth-demo-panel {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 16px;
+  text-align: left;
+  animation: fadeIn 0.3s ease;
+}
+
+.auth-demo-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.auth-demo-icon {
+  font-size: 1.3rem;
+}
+
+.auth-demo-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.auth-demo-desc {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.auth-demo-user {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  color: #a78bfa;
+}
+
+.auth-info-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.auth-info-label {
+  color: #64748b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.auth-info-value {
+  color: #cbd5e1;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.8rem;
+}
+
+/* ─── グリッドレイアウト ───────────────────────────────────────── */
+.auth-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 500px) {
+  .auth-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── カード ───────────────────────────────────────────────────── */
+.auth-card {
+  border-radius: 12px;
+  border: 1px solid;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: all 0.2s ease;
+}
+
+.auth-card.medical-doctor {
+  background: rgba(6, 182, 212, 0.05);
+  border-color: rgba(6, 182, 212, 0.25);
+}
+
+.auth-card.medical-staff {
+  background: rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.auth-card.nonmedical-doctor {
+  background: rgba(251, 146, 60, 0.05);
+  border-color: rgba(251, 146, 60, 0.25);
+}
+
+.auth-card.nonmedical-staff {
+  background: rgba(168, 85, 247, 0.05);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.auth-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.auth-card-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.auth-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth-card-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 0.15rem;
+}
+
+.auth-card-role {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-bottom: 0.2rem;
+  word-break: break-all;
+}
+
+.auth-card-endpoint {
+  font-size: 0.68rem;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  color: #64748b;
+  display: block;
+}
+
+.auth-card-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.auth-card-badge.badge-ok {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.auth-card-badge.badge-ng {
+  background: rgba(100, 116, 139, 0.12);
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  color: #64748b;
+}
+
+/* ─── APIボタン ───────────────────────────────────────────────── */
+.auth-call-btn {
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-call-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.auth-call-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── 結果表示 ────────────────────────────────────────────────── */
+.auth-result {
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  animation: slideDown 0.2s ease;
+}
+
+.auth-result.result-ok {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+.auth-result.result-ng {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  word-break: break-all;
 }
 </style>
