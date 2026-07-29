@@ -152,66 +152,101 @@
         <div v-if="switchError" class="switch-error">{{ switchError }}</div>
       </div>
 
-      <!-- ── 認可デモパネル (グループ×クライアントロール) ───────────────────── -->
+      <!-- ── 認可デモパネル (複数ROLE組み合わせ) ───────────────────── -->
       <div class="auth-demo-panel">
         <div class="auth-demo-header">
           <span class="auth-demo-icon">🔐</span>
-          <h3>グループ×ロール 認可デモ</h3>
+          <h3>複数ROLE 組み合わせ認可デモ</h3>
         </div>
         <p class="auth-demo-desc">
-          各ボタンをクリックして、ログイン中のユーザーがアクセスできるエンドポイントを確認できます。
+          条件を選択してエンドポイントを組み立て、ログイン中のユーザーがアクセスできるか確認できます。
           <span class="auth-demo-user">現在: <strong>{{ user.preferred_username }}</strong></span>
         </p>
 
-        <!-- グループ・クライアントロール情報 -->
-        <div v-if="user.groups && user.groups.length > 0" class="auth-info-row">
-          <span class="auth-info-label">所属グループ:</span>
-          <span class="auth-info-value">{{ user.groups.join(', ') }}</span>
+        <!-- 保有ROLE表示 -->
+        <div class="auth-roles-row">
+          <span class="auth-info-label">保有ROLE:</span>
+          <div class="auth-roles-chips">
+            <span v-for="r in displayAuthRoles" :key="r" class="auth-role-chip" :class="getAuthRoleChipClass(r)">{{ r }}</span>
+            <span v-if="displayAuthRoles.length === 0" class="auth-role-chip chip-none">(なし)</span>
+          </div>
         </div>
-        <div v-if="user.client_roles && user.client_roles.length > 0" class="auth-info-row">
-          <span class="auth-info-label">クライアントロール:</span>
-          <span class="auth-info-value">{{ user.client_roles.join(', ') }}</span>
+
+        <!-- セレクター行 -->
+        <div class="auth-selectors">
+          <div class="auth-selector-item">
+            <label class="auth-selector-label">グループ種別</label>
+            <select id="auth-select-group" v-model="authQuery.group" class="auth-select">
+              <option value="">(指定しない)</option>
+              <option value="medical-institution">medical-institution（医療機関）</option>
+              <option value="non-medical-institution">non-medical-institution（非医療機関）</option>
+            </select>
+          </div>
+
+          <div class="auth-selector-item">
+            <label class="auth-selector-label">機関コード</label>
+            <select id="auth-select-org" v-model="authQuery.org" class="auth-select">
+              <option value="">(指定しない)</option>
+              <option value="1310000001">1310000001</option>
+              <option value="1310000002">1310000002</option>
+              <option value="1320000001">1320000001</option>
+              <option value="1320000002">1320000002</option>
+            </select>
+          </div>
+
+          <div class="auth-selector-item">
+            <label class="auth-selector-label">職種ロール</label>
+            <select id="auth-select-role" v-model="authQuery.role" class="auth-select">
+              <option value="">(指定しない)</option>
+              <option value="doctor">doctor（医師）</option>
+              <option value="staff">staff（職員）</option>
+              <option value="nurse">nurse（看護師）</option>
+              <option value="clerk">clerk（事務員）</option>
+            </select>
+          </div>
         </div>
 
-        <div class="auth-grid">
-          <div
-            v-for="ep in AUTH_ENDPOINTS"
-            :key="ep.key"
-            class="auth-card"
-            :class="ep.color"
-          >
-            <div class="auth-card-top">
-              <span class="auth-card-icon">{{ ep.icon }}</span>
-              <div class="auth-card-info">
-                <div class="auth-card-label">{{ ep.label }}</div>
-                <div class="auth-card-role">{{ ep.role }}</div>
-                <code class="auth-card-endpoint">{{ ep.desc }}</code>
-              </div>
-              <div class="auth-card-badge" :class="hasRequiredRole(ep.role) ? 'badge-ok' : 'badge-ng'">
-                {{ hasRequiredRole(ep.role) ? '✓ 持っている' : '✕ ない' }}
-              </div>
-            </div>
-
-            <button
-              :id="'auth-btn-' + ep.key"
-              @click="callAuthEndpoint(ep)"
-              class="auth-call-btn"
-              :disabled="authLoading[ep.key]"
-            >
-              <span v-if="authLoading[ep.key]">呼び出し中...</span>
-              <span v-else>API呼び出し</span>
-            </button>
-
-            <!-- 結果表示 -->
-            <div v-if="authResults[ep.key]" class="auth-result" :class="authResults[ep.key].ok ? 'result-ok' : 'result-ng'">
-              <span v-if="authResults[ep.key].ok">
-                ✅ 成功！アクセス可
-              </span>
-              <span v-else>
-                🚫 {{ authResults[ep.key].msg }}
-              </span>
+        <!-- エンドポイントプレビュー -->
+        <div class="auth-preview">
+          <div class="auth-preview-row">
+            <span class="auth-preview-label">エンドポイント</span>
+            <code class="auth-preview-value">{{ authEndpointUrl }}</code>
+          </div>
+          <div class="auth-preview-row">
+            <span class="auth-preview-label">必要ROLE</span>
+            <div class="auth-required-roles">
+              <span v-if="authRequiredRoles.length === 0" class="auth-role-chip chip-none">(条件を選択してください)</span>
+              <span
+                v-for="r in authRequiredRoles"
+                :key="r"
+                class="auth-role-chip"
+                :class="hasAuthRole(r) ? 'chip-ok' : 'chip-ng'"
+              >{{ r }} <span class="chip-status">{{ hasAuthRole(r) ? '✓' : '✕' }}</span></span>
             </div>
           </div>
+          <div class="auth-preview-row">
+            <span class="auth-preview-label">判定</span>
+            <span class="auth-judge" :class="authJudgeClass">
+              {{ authJudgeText }}
+            </span>
+          </div>
+        </div>
+
+        <!-- 呼び出しボタン -->
+        <button
+          id="auth-call-btn"
+          @click="callAuthEndpoint"
+          class="auth-call-btn"
+          :disabled="authLoading || authRequiredRoles.length === 0"
+        >
+          <span v-if="authLoading">呼び出し中...</span>
+          <span v-else>API呼び出し</span>
+        </button>
+
+        <!-- 結果表示 -->
+        <div v-if="authResult" class="auth-result" :class="authResult.ok ? 'result-ok' : 'result-ng'">
+          <span v-if="authResult.ok">✅ 成功！アクセス可（HTTP 200）</span>
+          <span v-else>🚫 {{ authResult.msg }}</span>
         </div>
       </div>
 
@@ -253,19 +288,21 @@ const isAdmin = computed(() =>
   (user.value.roles || []).includes('ROLE_ADMIN')
 );
 
-/** 表示用ロール：internal Keycloak ロールを除外し、複合ロールも含む */
+/** 表示用ロール：internal Keycloak ロールを除外し、ROLE_GROUP_ / ROLE_ORG_ / ROLE_CLIENT_ も表示 */
 const displayRoles = computed(() =>
   (user.value.roles || []).filter(r =>
     r === 'ROLE_ADMIN' || r === 'ROLE_USER' || r === 'ROLE_PREVIOUS_ADMINISTRATOR'
-    || r.startsWith('ROLE_MEDICAL_INSTITUTION_') || r.startsWith('ROLE_NON_MEDICAL_INSTITUTION_')
+    || r.startsWith('ROLE_GROUP_') || r.startsWith('ROLE_ORG_') || r.startsWith('ROLE_CLIENT_')
   )
 );
 
 const getRoleBadgeClass = (role) => {
   if (role === 'ROLE_ADMIN') return 'badge-admin';
   if (role === 'ROLE_PREVIOUS_ADMINISTRATOR') return 'badge-prev-admin';
-  if (role.includes('MEDICAL_INSTITUTION') && !role.includes('NON_MEDICAL')) return 'badge-medical';
-  if (role.includes('NON_MEDICAL')) return 'badge-nonmedical';
+  if (role.startsWith('ROLE_GROUP_MEDICAL')) return 'badge-medical';
+  if (role.startsWith('ROLE_GROUP_NON')) return 'badge-nonmedical';
+  if (role.startsWith('ROLE_ORG_')) return 'badge-org';
+  if (role.startsWith('ROLE_CLIENT_')) return 'badge-client';
   return 'badge-user';
 };
 
@@ -378,74 +415,101 @@ const checkAccessToken = async () => {
   }
 };
 
-// ─── 認可デモ ───────────────────────────────────────────────────────────────────
+// ─── 認可デモ (複数ROLE 組み合わせ) ──────────────────────────────
 
-const AUTH_ENDPOINTS = [
-  {
-    key: 'medical-doctor',
-    label: 'medical-institution × doctor',
-    role: 'ROLE_MEDICAL_INSTITUTION_DOCTOR',
-    url: 'http://localhost:8080/api/v2/api/medical/doctor',
-    color: 'medical-doctor',
-    icon: '🏥',
-    desc: '/api/medical/doctor',
-  },
-  {
-    key: 'medical-staff',
-    label: 'medical-institution × staff',
-    role: 'ROLE_MEDICAL_INSTITUTION_STAFF',
-    url: 'http://localhost:8080/api/v2/api/medical/staff',
-    color: 'medical-staff',
-    icon: '📖',
-    desc: '/api/medical/staff',
-  },
-  {
-    key: 'nonmedical-doctor',
-    label: 'non-medical-institution × doctor',
-    role: 'ROLE_NON_MEDICAL_INSTITUTION_DOCTOR',
-    url: 'http://localhost:8080/api/v2/api/nonmedical/doctor',
-    color: 'nonmedical-doctor',
-    icon: '🏛️',
-    desc: '/api/nonmedical/doctor',
-  },
-  {
-    key: 'nonmedical-staff',
-    label: 'non-medical-institution × staff',
-    role: 'ROLE_NON_MEDICAL_INSTITUTION_STAFF',
-    url: 'http://localhost:8080/api/v2/api/nonmedical/staff',
-    color: 'nonmedical-staff',
-    icon: '💼',
-    desc: '/api/nonmedical/staff',
-  },
-];
+const authQuery = ref({
+  group: '',
+  org: '',
+  role: '',
+});
 
-const authResults = ref({});
-const authLoading = ref({});
+/** 保有ROLEからデモ用ROLE (ROLE_GROUP_, ROLE_ORG_, ROLE_CLIENT_) を抽出 */
+const displayAuthRoles = computed(() =>
+  (user.value.roles || []).filter(r =>
+    r.startsWith('ROLE_GROUP_') || r.startsWith('ROLE_ORG_') || r.startsWith('ROLE_CLIENT_')
+  )
+);
 
-const hasRequiredRole = (role) => (user.value.roles || []).includes(role);
+const getAuthRoleChipClass = (role) => {
+  if (role.startsWith('ROLE_GROUP_')) return 'chip-group';
+  if (role.startsWith('ROLE_ORG_')) return 'chip-org';
+  if (role.startsWith('ROLE_CLIENT_')) return 'chip-role';
+  return 'chip-default';
+};
 
-const callAuthEndpoint = async (ep) => {
-  authLoading.value[ep.key] = true;
-  authResults.value[ep.key] = null;
+const toRoleSegment = (s) => (s || '').replace(/-/g, '_').toUpperCase();
+
+/** 選択条件から必要な ROLE リストを動的に算出 */
+const authRequiredRoles = computed(() => {
+  const roles = [];
+  if (authQuery.value.group) {
+    roles.push(`ROLE_GROUP_${toRoleSegment(authQuery.value.group)}`);
+  }
+  if (authQuery.value.org) {
+    roles.push(`ROLE_ORG_${toRoleSegment(authQuery.value.org)}`);
+  }
+  if (authQuery.value.role) {
+    roles.push(`ROLE_CLIENT_${toRoleSegment(authQuery.value.role)}`);
+  }
+  return roles;
+});
+
+/** 構築されたエンドポイント URL */
+const authEndpointUrl = computed(() => {
+  const params = new URLSearchParams();
+  if (authQuery.value.group) params.append('group', authQuery.value.group);
+  if (authQuery.value.org) params.append('org', authQuery.value.org);
+  if (authQuery.value.role) params.append('role', authQuery.value.role);
+  const queryString = params.toString();
+  return `http://localhost:8080/api/v2/api/auth/check${queryString ? '?' + queryString : ''}`;
+});
+
+const hasAuthRole = (role) => (user.value.roles || []).includes(role);
+
+/** 全必要 ROLE を保持しているかの事前判定 */
+const canAccessAuthEndpoint = computed(() => {
+  if (authRequiredRoles.value.length === 0) return false;
+  return authRequiredRoles.value.every(r => hasAuthRole(r));
+});
+
+const authJudgeClass = computed(() => {
+  if (authRequiredRoles.value.length === 0) return 'judge-none';
+  return canAccessAuthEndpoint.value ? 'judge-ok' : 'judge-ng';
+});
+
+const authJudgeText = computed(() => {
+  if (authRequiredRoles.value.length === 0) return '(条件を選択してください)';
+  return canAccessAuthEndpoint.value ? 'アクセス可 (HTTP 200想定)' : 'アクセス拒否 (HTTP 403想定)';
+});
+
+const authResult = ref(null);
+const authLoading = ref(false);
+
+const callAuthEndpoint = async () => {
+  if (authRequiredRoles.value.length === 0) return;
+  authLoading.value = true;
+  authResult.value = null;
   try {
-    const res = await fetch(ep.url, {
+    const res = await fetch(authEndpointUrl.value, {
+      method: 'GET',
       credentials: 'include',
       headers: { Accept: 'application/json' },
     });
+    const data = await res.json().catch(() => null);
     if (res.ok) {
-      const data = await res.json();
-      authResults.value[ep.key] = { ok: true, data };
+      authResult.value = { ok: true, data };
     } else if (res.status === 403) {
-      authResults.value[ep.key] = { ok: false, status: 403, msg: 'アクセス拒否 (403 Forbidden)　—　必要なロールがありません' };
+      authResult.value = { ok: false, status: 403, msg: data?.message || 'アクセス拒否 (403 Forbidden) — 必要なロールがありません' };
     } else if (res.status === 401) {
-      authResults.value[ep.key] = { ok: false, status: 401, msg: '未認証 (401 Unauthorized)' };
+      authResult.value = { ok: false, status: 401, msg: '未認証 (401 Unauthorized)' };
     } else {
-      authResults.value[ep.key] = { ok: false, status: res.status, msg: `HTTP ${res.status}` };
+      authResult.value = { ok: false, status: res.status, msg: `APIエラー: HTTP ${res.status}` };
     }
   } catch (e) {
-    authResults.value[ep.key] = { ok: false, msg: 'ネットワークエラー' };
+    console.error(e);
+    authResult.value = { ok: false, msg: 'ネットワークエラーが発生しました' };
   } finally {
-    authLoading.value[ep.key] = false;
+    authLoading.value = false;
   }
 };
 
@@ -891,7 +955,7 @@ onMounted(() => {
   width: 100%;
 }
 
-/* ─── 複合ロールバッジ ─────────────────────────────────────────── */
+/* ─── ROLEバッジ (ヘッダーバッジ用) ─────────────────────────────── */
 .badge-medical {
   background: rgba(6, 182, 212, 0.15);
   border: 1px solid rgba(6, 182, 212, 0.5);
@@ -902,6 +966,18 @@ onMounted(() => {
   background: rgba(251, 146, 60, 0.15);
   border: 1px solid rgba(251, 146, 60, 0.5);
   color: #fb923c;
+}
+
+.badge-org {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: #818cf8;
+}
+
+.badge-client {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
 }
 
 /* ─── 認可デモパネル ──────────────────────────────────────────── */
@@ -953,18 +1029,11 @@ onMounted(() => {
   color: #a78bfa;
 }
 
-.auth-info-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.4rem;
-  font-size: 0.82rem;
-}
-
 .auth-info-label {
   color: #64748b;
   font-weight: 600;
   white-space: nowrap;
+  font-size: 0.82rem;
 }
 
 .auth-info-value {
@@ -975,141 +1044,240 @@ onMounted(() => {
   font-size: 0.8rem;
 }
 
-/* ─── グリッドレイアウト ───────────────────────────────────────── */
-.auth-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-  margin-top: 1rem;
+/* ─── 保有ROLEチップ行 ────────────────────────────────────────── */
+.auth-roles-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
 }
 
-@media (max-width: 500px) {
-  .auth-grid {
+.auth-roles-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.auth-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: monospace;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.05);
+  color: #94a3b8;
+}
+
+.chip-medical {
+  background: rgba(6, 182, 212, 0.1);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #22d3ee;
+}
+
+.chip-nonmedical {
+  background: rgba(251, 146, 60, 0.1);
+  border-color: rgba(251, 146, 60, 0.4);
+  color: #fb923c;
+}
+
+.chip-org {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #818cf8;
+}
+
+.chip-client {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.chip-none {
+  color: #475569;
+  font-style: italic;
+}
+
+.chip-ok {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #34d399;
+}
+
+.chip-ng {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.chip-status {
+  font-weight: 700;
+}
+
+/* ─── セレクター ──────────────────────────────────────────────── */
+.auth-selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (max-width: 520px) {
+  .auth-selectors {
     grid-template-columns: 1fr;
   }
 }
 
-/* ─── カード ───────────────────────────────────────────────────── */
-.auth-card {
-  border-radius: 12px;
-  border: 1px solid;
-  padding: 0.9rem;
+.auth-selector-item {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  transition: all 0.2s ease;
+  gap: 0.35rem;
 }
 
-.auth-card.medical-doctor {
-  background: rgba(6, 182, 212, 0.05);
-  border-color: rgba(6, 182, 212, 0.25);
+.auth-selector-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
-.auth-card.medical-staff {
-  background: rgba(16, 185, 129, 0.05);
-  border-color: rgba(16, 185, 129, 0.25);
+.auth-select {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 16px;
+  padding-right: 2rem;
 }
 
-.auth-card.nonmedical-doctor {
-  background: rgba(251, 146, 60, 0.05);
-  border-color: rgba(251, 146, 60, 0.25);
+.auth-select:focus {
+  border-color: rgba(99, 102, 241, 0.5);
 }
 
-.auth-card.nonmedical-staff {
-  background: rgba(168, 85, 247, 0.05);
-  border-color: rgba(168, 85, 247, 0.25);
+.auth-select option {
+  background: #1e293b;
+  color: #e2e8f0;
 }
 
-.auth-card-top {
+/* ─── プレビューエリア ─────────────────────────────────────────── */
+.auth-preview {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.auth-preview-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.6rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.auth-card-icon {
-  font-size: 1.4rem;
-  flex-shrink: 0;
+.auth-preview-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  min-width: 80px;
+  padding-top: 0.15rem;
 }
 
-.auth-card-info {
+.auth-preview-value {
+  font-size: 0.82rem;
+  background: rgba(255,255,255,0.05);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  color: #94a3b8;
+  word-break: break-all;
   flex: 1;
-  min-width: 0;
 }
 
-.auth-card-label {
+.auth-required-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+/* ─── 判定 ────────────────────────────────────────────────────── */
+.auth-judge {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #e2e8f0;
-  margin-bottom: 0.15rem;
-}
-
-.auth-card-role {
-  font-size: 0.72rem;
-  color: #94a3b8;
-  margin-bottom: 0.2rem;
-  word-break: break-all;
-}
-
-.auth-card-endpoint {
-  font-size: 0.68rem;
-  background: rgba(255,255,255,0.05);
-  border-radius: 4px;
-  padding: 0.1rem 0.3rem;
-  color: #64748b;
-  display: block;
-}
-
-.auth-card-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
+  padding: 0.2rem 0.6rem;
   border-radius: 6px;
-  padding: 0.2rem 0.5rem;
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
-.auth-card-badge.badge-ok {
-  background: rgba(16, 185, 129, 0.15);
-  border: 1px solid rgba(16, 185, 129, 0.4);
+.judge-ok {
   color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
-.auth-card-badge.badge-ng {
-  background: rgba(100, 116, 139, 0.12);
-  border: 1px solid rgba(100, 116, 139, 0.3);
-  color: #64748b;
+.judge-ng {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.judge-none {
+  color: #475569;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
 }
 
 /* ─── APIボタン ───────────────────────────────────────────────── */
 .auth-call-btn {
   width: 100%;
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #e2e8f0;
-  font-size: 0.8rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
+  color: #a78bfa;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  margin-bottom: 0.75rem;
 }
 
 .auth-call-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.55);
 }
 
 .auth-call-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 /* ─── 結果表示 ────────────────────────────────────────────────── */
 .auth-result {
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  border-radius: 8px;
-  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
   animation: slideDown 0.2s ease;
 }
 

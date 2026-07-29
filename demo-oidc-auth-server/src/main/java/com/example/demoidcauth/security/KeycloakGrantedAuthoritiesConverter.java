@@ -17,9 +17,17 @@ import java.util.Map;
  * <h3>マッピング内容</h3>
  * <ul>
  *   <li>{@code realm_access.roles} → {@code ROLE_ロール名}（例: ROLE_ADMIN, ROLE_USER）</li>
- *   <li>{@code groups} × {@code resource_access.demo-oidc-auth-server.roles} の組み合わせ
- *       → {@code ROLE_グループ名_クライアントロール名}（例: ROLE_MEDICAL_INSTITUTION_DOCTOR）</li>
+ *   <li>{@code groups} フルパス（例: /medical-institution/1310000001/doctor）を階層分解:
+ *     <ul>
+ *       <li>第1セグメント → {@code ROLE_GROUP_セグメント}（例: ROLE_GROUP_MEDICAL_INSTITUTION）</li>
+ *       <li>第2セグメント → {@code ROLE_ORG_セグメント}（例: ROLE_ORG_1310000001）</li>
+ *     </ul>
+ *   </li>
+ *   <li>{@code resource_access.demo-oidc-auth-server.roles}
+ *       → {@code ROLE_CLIENT_ロール名}（例: ROLE_CLIENT_DOCTOR）</li>
  * </ul>
+ *
+ * <p>複数 ROLE の AND 条件組み合わせで認可するため、複合 ROLE（ROLE_GROUP_ROLE）は生成しない。</p>
  */
 @Component
 public class KeycloakGrantedAuthoritiesConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
@@ -40,25 +48,34 @@ public class KeycloakGrantedAuthoritiesConverter implements Converter<Jwt, Colle
             }
         }
 
-        // ② groups クレームを取得
-        List<String> groups = extractStringList(jwt.getClaim("groups"));
+        // ② groups クレーム（full.path=true のフルパス形式）を階層分解して ROLE_ を生成
+        // 例: "/medical-institution/1310000001/doctor"
+        //   → ROLE_GROUP_MEDICAL_INSTITUTION（第1セグメント: グループ種別）
+        //   → ROLE_ORG_1310000001           （第2セグメント: 機関コード）
+        List<String> groupPaths = extractStringList(jwt.getClaim("groups"));
+        for (String path : groupPaths) {
+            // 先頭の '/' を除いて分割
+            String[] segments = path.replaceFirst("^/", "").split("/");
+            if (segments.length >= 1 && !segments[0].isBlank()) {
+                authorities.add(new SimpleGrantedAuthority(
+                    "ROLE_GROUP_" + toRoleSegment(segments[0])));
+            }
+            if (segments.length >= 2 && !segments[1].isBlank()) {
+                authorities.add(new SimpleGrantedAuthority(
+                    "ROLE_ORG_" + toRoleSegment(segments[1])));
+            }
+            // 第3セグメント以降はクライアントロール側（ROLE_CLIENT_）で表現するため除外
+        }
 
-        // ③ resource_access.demo-oidc-auth-server.roles からクライアントロールを取得
-        List<String> clientRoles = List.of();
+        // ③ resource_access.demo-oidc-auth-server.roles → ROLE_CLIENT_ロール名
         Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
         if (resourceAccess != null) {
             Object serverAccess = resourceAccess.get("demo-oidc-auth-server");
             if (serverAccess instanceof Map<?, ?> serverMap) {
-                clientRoles = extractStringList(serverMap.get("roles"));
-            }
-        }
-
-        // ④ groups × clientRoles の組み合わせで複合 ROLE_ を生成
-        // 例: medical-institution × doctor → ROLE_MEDICAL_INSTITUTION_DOCTOR
-        for (String group : groups) {
-            for (String clientRole : clientRoles) {
-                String roleName = formatRoleSegment(group) + "_" + formatRoleSegment(clientRole);
-                authorities.add(new SimpleGrantedAuthority("ROLE_" + roleName));
+                List<String> clientRoles = extractStringList(serverMap.get("roles"));
+                clientRoles.stream()
+                    .map(r -> new SimpleGrantedAuthority("ROLE_CLIENT_" + toRoleSegment(r)))
+                    .forEach(authorities::add);
             }
         }
 
@@ -66,10 +83,10 @@ public class KeycloakGrantedAuthoritiesConverter implements Converter<Jwt, Colle
     }
 
     /**
-     * ロール要素文字列を大文字に変換し、ハイフン等をアンダースコアに置き換える。
-     * 例: "medical-institution" -> "MEDICAL_INSTITUTION"
+     * セグメント文字列を ROLE_ 用フォーマットに変換する。
+     * 例: "medical-institution" → "MEDICAL_INSTITUTION", "1310000001" → "1310000001"
      */
-    private String formatRoleSegment(String segment) {
+    private String toRoleSegment(String segment) {
         if (segment == null) {
             return "";
         }

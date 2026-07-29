@@ -34,15 +34,141 @@
   },
   "groups": [
     {
-      "name": "medical-institution",
-      "path": "/medical-institution",
-      "subGroups": []
-    },
-    {
-      "name": "non-medical-institution",
-      "path": "/non-medical-institution",
-      "subGroups": []
-    }
+        "name": "medical-institution",
+        "path": "/medical-institution",
+        "subGroups": [
+          {
+            "name": "1310000001",
+            "path": "/medical-institution/1310000001",
+            "subGroups": [
+              {
+                "name": "doctor",
+                "path": "/medical-institution/1310000001/doctor",
+                "subGroups": [],
+                "clientRoles": {
+                  "demo-oidc-auth-server": [
+                    "doctor"
+                  ]
+                }
+              },
+              {
+                "name": "nurse",
+                "path": "/medical-institution/1310000001/nurse",
+                "subGroups": []
+              },
+              {
+                "name": "clerk",
+                "path": "/medical-institution/1310000001/clerk",
+                "subGroups": []
+              },
+              {
+                "name": "admin",
+                "path": "/medical-institution/1310000001/admin",
+                "subGroups": []
+              }
+            ]
+          },
+          {
+            "name": "1310000002",
+            "path": "/medical-institution/1310000002",
+            "subGroups": [
+              {
+                "name": "doctor",
+                "path": "/medical-institution/1310000002/doctor",
+                "subGroups": [],
+                "clientRoles": {
+                  "demo-oidc-auth-server": [
+                    "doctor"
+                  ]
+                }
+              },
+              {
+                "name": "nurse",
+                "path": "/medical-institution/1310000002/nurse",
+                "subGroups": []
+              },
+              {
+                "name": "clerk",
+                "path": "/medical-institution/1310000002/clerk",
+                "subGroups": []
+              },
+              {
+                "name": "admin",
+                "path": "/medical-institution/1310000002/admin",
+                "subGroups": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "non-medical-institution",
+        "path": "/non-medical-institution",
+        "subGroups": [
+          {
+            "name": "1320000001",
+            "path": "/non-medical-institution/1320000001",
+            "subGroups": [
+              {
+                "name": "doctor",
+                "path": "/non-medical-institution/1320000001/doctor",
+                "subGroups": [],
+                "clientRoles": {
+                  "demo-oidc-auth-server": [
+                    "doctor"
+                  ]
+                }
+              },
+              {
+                "name": "nurse",
+                "path": "/non-medical-institution/1320000001/nurse",
+                "subGroups": []
+              },
+              {
+                "name": "clerk",
+                "path": "/non-medical-institution/1320000001/clerk",
+                "subGroups": []
+              },
+              {
+                "name": "admin",
+                "path": "/non-medical-institution/1320000001/admin",
+                "subGroups": []
+              }
+            ]
+          },
+          {
+            "name": "1320000002",
+            "path": "/non-medical-institution/1320000002",
+            "subGroups": [
+              {
+                "name": "doctor",
+                "path": "/non-medical-institution/1320000002/doctor",
+                "subGroups": [],
+                "clientRoles": {
+                  "demo-oidc-auth-server": [
+                    "doctor"
+                  ]
+                }
+              },
+              {
+                "name": "nurse",
+                "path": "/non-medical-institution/1320000002/nurse",
+                "subGroups": []
+              },
+              {
+                "name": "clerk",
+                "path": "/non-medical-institution/1320000002/clerk",
+                "subGroups": []
+              },
+              {
+                "name": "admin",
+                "path": "/non-medical-institution/1320000002/admin",
+                "subGroups": []
+              }
+            ]
+          }
+        ]
+      }
   ],
   "clients": [
     {
@@ -74,7 +200,7 @@
           "protocolMapper": "oidc-group-membership-mapper",
           "consentRequired": false,
           "config": {
-            "full.path": "false",
+            "full.path": "true",
             "id.token.claim": "false",
             "access.token.claim": "true",
             "claim.name": "groups",
@@ -152,7 +278,7 @@
           "protocolMapper": "oidc-group-membership-mapper",
           "consentRequired": false,
           "config": {
-            "full.path": "false",
+            "full.path": "true",
             "id.token.claim": "false",
             "access.token.claim": "true",
             "claim.name": "groups",
@@ -246,10 +372,10 @@
       ]
     },
     {
-      "username": "medical-institution-doctor",
-      "email": "doctor-medical@example.com",
-      "firstName": "Doctor",
-      "lastName": "MedicalInstitution",
+      "username": "mediuser0000001",
+      "email": "mediuser0000001@example.com",
+      "firstName": "1310000001",
+      "lastName": "医師",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -263,19 +389,14 @@
         "USER"
       ],
       "groups": [
-        "/medical-institution"
-      ],
-      "clientRoles": {
-        "demo-oidc-auth-server": [
-          "doctor"
-        ]
-      }
+        "/medical-institution/1310000001/doctor"
+      ]
     },
     {
-      "username": "medical-institution-staff",
-      "email": "staff-medical@example.com",
-      "firstName": "Staff",
-      "lastName": "MedicalInstitution",
+      "username": "mediuser0000002",
+      "email": "mediuser0000002@example.com",
+      "firstName": "1310000001",
+      "lastName": "看護師",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -289,19 +410,14 @@
         "USER"
       ],
       "groups": [
-        "/medical-institution"
-      ],
-      "clientRoles": {
-        "demo-oidc-auth-server": [
-          "staff"
-        ]
-      }
+        "/medical-institution/1310000001/nurse"
+      ]
     },
     {
-      "username": "non-medical-institution-doctor",
-      "email": "doctor-nonmedical@example.com",
-      "firstName": "Doctor",
-      "lastName": "NonMedicalInstitution",
+      "username": "mediuser0000003",
+      "email": "mediuser0000003@example.com",
+      "firstName": "1310000001",
+      "lastName": "一般事務員",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -315,19 +431,14 @@
         "USER"
       ],
       "groups": [
-        "/non-medical-institution"
-      ],
-      "clientRoles": {
-        "demo-oidc-auth-server": [
-          "doctor"
-        ]
-      }
+        "/medical-institution/1310000001/clerk"
+      ]
     },
     {
-      "username": "non-medical-institution-staff",
-      "email": "staff-nonmedical@example.com",
-      "firstName": "Staff",
-      "lastName": "NonMedicalInstitution",
+      "username": "mediuser0000004",
+      "email": "mediuser0000004@example.com",
+      "firstName": "1310000001",
+      "lastName": "管理者",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -341,13 +452,428 @@
         "USER"
       ],
       "groups": [
-        "/non-medical-institution"
+        "/medical-institution/1310000001/admin"
+      ]
+    },
+    {
+      "username": "mediuser0000005",
+      "email": "mediuser0000005@example.com",
+      "firstName": "1310000001",
+      "lastName": "医師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
       ],
-      "clientRoles": {
-        "demo-oidc-auth-server": [
-          "staff"
-        ]
-      }
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000001/doctor"
+      ]
+    },
+    {
+      "username": "mediuser0000006",
+      "email": "mediuser0000006@example.com",
+      "firstName": "1310000001",
+      "lastName": "看護師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000001/nurse"
+      ]
+    },
+    {
+      "username": "mediuser0000007",
+      "email": "mediuser0000007@example.com",
+      "firstName": "1310000001",
+      "lastName": "一般事務員",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000001/clerk"
+      ]
+    },
+    {
+      "username": "mediuser0000008",
+      "email": "mediuser0000008@example.com",
+      "firstName": "1310000001",
+      "lastName": "管理者",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000001/admin"
+      ]
+    },
+    {
+      "username": "mediuser0000009",
+      "email": "mediuser0000009@example.com",
+      "firstName": "1310000002",
+      "lastName": "医師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/doctor"
+      ]
+    },
+    {
+      "username": "mediuser0000010",
+      "email": "mediuser0000010@example.com",
+      "firstName": "1310000002",
+      "lastName": "看護師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/nurse"
+      ]
+    },
+    {
+      "username": "mediuser0000011",
+      "email": "mediuser0000011@example.com",
+      "firstName": "1310000002",
+      "lastName": "一般事務員",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/clerk"
+      ]
+    },
+    {
+      "username": "mediuser0000012",
+      "email": "mediuser0000012@example.com",
+      "firstName": "1310000002",
+      "lastName": "管理者",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/admin"
+      ]
+    },
+    {
+      "username": "mediuser0000013",
+      "email": "mediuser0000013@example.com",
+      "firstName": "1310000002",
+      "lastName": "医師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/doctor"
+      ]
+    },
+    {
+      "username": "mediuser0000014",
+      "email": "mediuser0000014@example.com",
+      "firstName": "1310000002",
+      "lastName": "看護師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/nurse"
+      ]
+    },
+    {
+      "username": "mediuser0000015",
+      "email": "mediuser0000015@example.com",
+      "firstName": "1310000002",
+      "lastName": "一般事務員",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/clerk"
+      ]
+    },
+    {
+      "username": "mediuser0000016",
+      "email": "mediuser0000016@example.com",
+      "firstName": "1310000002",
+      "lastName": "管理者",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution/1310000002/admin"
+      ]
+    },
+    {
+      "username": "nonmediuser0001",
+      "email": "nonmediuser0001@example.com",
+      "firstName": "1320000001",
+      "lastName": "医師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000001/doctor"
+      ]
+    },
+    {
+      "username": "nonmediuser0002",
+      "email": "nonmediuser0002@example.com",
+      "firstName": "1320000001",
+      "lastName": "看護師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000001/nurse"
+      ]
+    },
+    {
+      "username": "nonmediuser0003",
+      "email": "nonmediuser0003@example.com",
+      "firstName": "1320000001",
+      "lastName": "一般事務員",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000001/clerk"
+      ]
+    },
+    {
+      "username": "nonmediuser0004",
+      "email": "nonmediuser0004@example.com",
+      "firstName": "1320000001",
+      "lastName": "管理者",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000001/admin"
+      ]
+    },
+    {
+      "username": "nonmediuser0005",
+      "email": "nonmediuser0005@example.com",
+      "firstName": "1320000002",
+      "lastName": "医師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000002/doctor"
+      ]
+    },
+    {
+      "username": "nonmediuser0006",
+      "email": "nonmediuser0006@example.com",
+      "firstName": "1320000002",
+      "lastName": "看護師",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000002/nurse"
+      ]
+    },
+    {
+      "username": "nonmediuser0007",
+      "email": "nonmediuser0007@example.com",
+      "firstName": "1320000002",
+      "lastName": "一般事務員",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000002/clerk"
+      ]
+    },
+    {
+      "username": "nonmediuser0008",
+      "email": "nonmediuser0008@example.com",
+      "firstName": "1320000002",
+      "lastName": "管理者",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution/1320000002/admin"
+      ]
     }
   ]
 }

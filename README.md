@@ -401,48 +401,85 @@ OIDC / OAuth2 環境下における異なるなりすましアプローチの比
 
 ---
 
-## グループ×クライアントロール認可制御機能
+## 複数ROLE組み合わせ認可制御機能
 
-Keycloak で設定した **グループ** と **クライアントロール** の組み合わせに基づき、複合ロール (`ROLE_グループ名_ロール名`) を動的に生成して Spring Security の `@PreAuthorize` による細かな認可制御を行うサンプルです。
+Keycloak の **groups クレーム（フルパス）** と **クライアントロール** を **path の各階層ごとに個別の ROLE_ に変換** し、Spring Security の AND 条件による細粒度の認可制御を行うサンプルです。
 
-### 構成定義
+複合 ROLE（`ROLE_グループ名_ロール名`）ではなく、**軸ごとに独立した ROLE を組み合わせる**ことで、「医療機関全体」「特定機関コード」「特定職種」など、単一軸での認可もシンプルに表現できます。
 
-#### 1. グループとクライアントロール
-* **グループ**:
-  * `medical-institution`（医療機関）
-  * `non-medical-institution`（非保険医療機関）
-* **クライアントロール** (`demo-oidc-auth-server` クライアント):
-  * `doctor`（医師）
-  * `staff`（職員）
+### ROLE 体系
 
-#### 2. デモユーザー一覧（パスワードは一律 `password`）
+groups クレームのフルパス（例: `/medical-institution/1310000001/doctor`）を `/` で分割し、各セグメントから ROLE を生成します。
 
-| ユーザー名 | 所属グループ | クライアントロール | 生成される `ROLE_` |
-|---|---|---|---|
-| `medical-institution-doctor` | `medical-institution` | `doctor` | `ROLE_MEDICAL_INSTITUTION_DOCTOR` |
-| `medical-institution-staff` | `medical-institution` | `staff` | `ROLE_MEDICAL_INSTITUTION_STAFF` |
-| `non-medical-institution-doctor` | `non-medical-institution` | `doctor` | `ROLE_NON_MEDICAL_INSTITUTION_DOCTOR` |
-| `non-medical-institution-staff` | `non-medical-institution` | `staff` | `ROLE_NON_MEDICAL_INSTITUTION_STAFF` |
-
-※ `ROLE_` 生成処理では、グループ名およびロール名を大文字化し、ハイフン (`-`) をアンダースコア (`_`) に自動置換して結合します。
-
-### 認可ルールと検証用エンドポイント
-
-| エンドポイント | 必要ロール (Spring Security) | アクセス可能なユーザー |
+| ROLE プレフィックス | 源泉 | 例 |
 |---|---|---|
-| `/api/medical/doctor` | `@PreAuthorize("hasRole('MEDICAL_INSTITUTION_DOCTOR')")` | `medical-institution-doctor` |
-| `/api/medical/staff` | `@PreAuthorize("hasRole('MEDICAL_INSTITUTION_STAFF')")` | `medical-institution-staff` |
-| `/api/nonmedical/doctor` | `@PreAuthorize("hasRole('NON_MEDICAL_INSTITUTION_DOCTOR')")` | `non-medical-institution-doctor` |
-| `/api/nonmedical/staff` | `@PreAuthorize("hasRole('NON_MEDICAL_INSTITUTION_STAFF')")` | `non-medical-institution-staff` |
+| `ROLE_GROUP_` | groups path 第1セグメント（機関種別） | `ROLE_GROUP_MEDICAL_INSTITUTION` |
+| `ROLE_ORG_` | groups path 第2セグメント（機関コード） | `ROLE_ORG_1310000001` |
+| `ROLE_CLIENT_` | `resource_access.demo-oidc-auth-server.roles`（職種） | `ROLE_CLIENT_DOCTOR` |
+| `ROLE_` | `realm_access.roles`（レルムロール） | `ROLE_USER`, `ROLE_ADMIN` |
+
+#### マッピング例
+
+```
+group path: /medical-institution/1310000001/doctor
+  → ROLE_GROUP_MEDICAL_INSTITUTION   （機関種別）
+  → ROLE_ORG_1310000001              （機関コード）
+
+client role: doctor
+  → ROLE_CLIENT_DOCTOR               （職種）
+```
+
+#### 組み合わせ認可の表現力
+
+| 認可条件 | Spring Security 式 |
+|---|---|
+| 医療機関の全職種・全機関に許可 | `ROLE_GROUP_MEDICAL_INSTITUTION` 保持 |
+| 機関コード 1310000001 のみに許可 | `ROLE_ORG_1310000001` 保持 |
+| 全機関の医師のみに許可 | `ROLE_CLIENT_DOCTOR` 保持 |
+| 医療機関の医師のみに許可（AND） | `ROLE_GROUP_MEDICAL_INSTITUTION` + `ROLE_CLIENT_DOCTOR` 保持 |
+
+### Keycloak 側の設定
+
+- groups クレームのプロトコルマッパーは **`full.path: true`** に設定し、フルパス形式（`/医療機関/機関コード/職種`）で JWT に含める。
+- クライアントロールは `demo-oidc-auth-server` に `doctor` / `staff` / `nurse` / `clerk` を定義し、グループ配下の `clientRoles` でマッピングする。
+
+### 検証用エンドポイント
+
+| エンドポイント | 説明 |
+|---|---|
+| `GET /api/auth/check?group=<GROUP>&org=<ORG>&role=<ROLE>` | クエリパラメータで指定した条件の ROLE を AND チェック |
+
+各パラメータは省略可（省略した軸はチェックしない）。全指定ROLE を保持している場合のみ HTTP 200 OK を返す。
+
+**パラメータ値の例**
+
+| パラメータ | 値の例 |
+|---|---|
+| `group` | `medical-institution`, `non-medical-institution` |
+| `org` | `1310000001`, `1310000002`, `1320000001`, `1320000002` |
+| `role` | `doctor`, `staff`, `nurse`, `clerk` |
+
+### デモユーザー一覧（パスワードは一律 `password`）
+
+| ユーザー名 | 所属グループ（フルパス） | 付与される ROLE |
+|---|---|---|
+| `mediuser0000001` | `/medical-institution/1310000001/doctor` | `ROLE_GROUP_MEDICAL_INSTITUTION`, `ROLE_ORG_1310000001`, `ROLE_CLIENT_DOCTOR` |
+| `mediuser0000002` | `/medical-institution/1310000001/nurse` | `ROLE_GROUP_MEDICAL_INSTITUTION`, `ROLE_ORG_1310000001` |
+| `mediuser0000003` | `/medical-institution/1310000001/clerk` | `ROLE_GROUP_MEDICAL_INSTITUTION`, `ROLE_ORG_1310000001` |
+| `mediuser0000004` | `/medical-institution/1310000001/admin` | `ROLE_GROUP_MEDICAL_INSTITUTION`, `ROLE_ORG_1310000001` |
+| `nonmediuser0001` | `/non-medical-institution/1320000001/doctor` | `ROLE_GROUP_NON_MEDICAL_INSTITUTION`, `ROLE_ORG_1320000001`, `ROLE_CLIENT_DOCTOR` |
+
+> **Note**: `ROLE_CLIENT_` はクライアントロール（`demo-oidc-auth-server` の `clientRoles`）が割り当てられているグループに所属しているユーザーにのみ付与されます。
 
 ### 動作確認手順
 
 1. **Keycloak Realm のインポート**
-   - 設定が反映された `keycloak/demo-realm.json` を Keycloak にインポートして起動します。
+   - `keycloak/demo-realm.json` を Keycloak にインポートして起動します（`full.path: true` が設定済み）。
 2. **ログイン**
-   - ブラウザで `http://localhost:5173/` にアクセスし、上記のデモユーザー（例: `medical-institution-doctor` / `password`）でログインします。
+   - ブラウザで `http://localhost:5173/` にアクセスし、デモユーザー（例: `mediuser0000001` / `password`）でログインします。
 3. **認可デモパネルでの確認**
-   - ホーム画面下部の **「🔐 グループ×ロール 認可デモ」** パネルを確認します。
-   - 自身が保持するロールに対応する API ボタン（例: `medical-institution × doctor`）をクリックすると **✅ 成功！アクセス可**（HTTP 200）と表示されます。
-   - 保持していないロールに対応する API ボタンをクリックすると **🚫 アクセス拒否 (403 Forbidden)** が返されることを確認できます。
-
+   - ホーム画面下部の **「🔐 複数ROLE 組み合わせ認可デモ」** パネルを確認します。
+   - **保有ROLE** 欄に `ROLE_GROUP_*` / `ROLE_ORG_*` / `ROLE_CLIENT_*` のチップが表示されます。
+   - **グループ種別・機関コード・職種ロール** のセレクトボックスで条件を組み合わせます。
+   - プレビューエリアに「必要ROLE」と「✓/✕ 保持状況」、「判定結果」がリアルタイムで表示されます。
+   - **「API呼び出し」** ボタンで実際に `/api/auth/check` を呼び出し、HTTP 200 / 403 を確認できます。

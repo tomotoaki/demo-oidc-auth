@@ -92,9 +92,9 @@ public class SecurityConfig {
                         .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
                         // ユーザー情報 API (認証必須)
                         .requestMatchers("/user/**").authenticated()
-                        // グループ×クライアントロール 認可デモ API
-                        // @PreAuthorize でメソッドレベル認可を使用するため、ここでは authenticated() のみ
-                        .requestMatchers("/api/medical/**", "/api/nonmedical/**").authenticated()
+                        // 複数 ROLE 組み合わせ認可デモ API
+                        // コントローラー内でロール判定するため、ここでは authenticated() のみ
+                        .requestMatchers("/api/auth/**").authenticated()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(new SimpleUrlAuthenticationSuccessHandler(VUE_BASE_URL + "/")))

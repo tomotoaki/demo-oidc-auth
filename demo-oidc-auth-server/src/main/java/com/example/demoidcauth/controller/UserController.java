@@ -55,7 +55,12 @@ public class UserController {
 
         // ─── ロール情報 (共通)
         // ───────────────────────────────────────────────────────────────────
-        List<String> roles = extractRolesFromJwt(jwt);
+        List<String> roles = authentication != null && authentication.getAuthorities() != null
+                ? authentication.getAuthorities().stream()
+                        .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                        .distinct()
+                        .toList()
+                : extractRolesFromJwt(jwt);
         claims.put("roles", roles);
 
         // ─── グループ・クライアントロール情報 (共通) ────────────────────────────────────────
