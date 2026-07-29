@@ -14,14 +14,14 @@ import java.util.stream.Collectors;
  *
  * <p>Keycloak の {@code groups} クレームと {@code resource_access.demo-oidc-auth-server.roles} を
  * 組み合わせて生成した複合ロール ({@code ROLE_グループ名_クライアントロール名}) による認可制御を示す。</p>
- *
+
  * <h3>アクセス可能ユーザーの対応表</h3>
  * <table>
  *   <tr><th>エンドポイント</th><th>必要ロール</th><th>対象ユーザー</th></tr>
- *   <tr><td>/api/medical/doctor</td><td>ROLE_医療機関_医師</td><td>医療機関-医師</td></tr>
- *   <tr><td>/api/medical/staff</td><td>ROLE_医療機関_職員</td><td>医療機関-職員</td></tr>
- *   <tr><td>/api/nonmedical/doctor</td><td>ROLE_非医療機関_医師</td><td>非医療機関-医師</td></tr>
- *   <tr><td>/api/nonmedical/staff</td><td>ROLE_非医療機関_職員</td><td>非医療機関-職員</td></tr>
+ *   <tr><td>/api/medical/doctor</td><td>ROLE_MEDICAL_INSTITUTION_DOCTOR</td><td>medical-institution-doctor</td></tr>
+ *   <tr><td>/api/medical/staff</td><td>ROLE_MEDICAL_INSTITUTION_STAFF</td><td>medical-institution-staff</td></tr>
+ *   <tr><td>/api/nonmedical/doctor</td><td>ROLE_NON_MEDICAL_INSTITUTION_DOCTOR</td><td>non-medical-institution-doctor</td></tr>
+ *   <tr><td>/api/nonmedical/staff</td><td>ROLE_NON_MEDICAL_INSTITUTION_STAFF</td><td>non-medical-institution-staff</td></tr>
  * </table>
  */
 @RestController
@@ -32,28 +32,28 @@ public class AuthorizationDemoController {
 
     /**
      * 医療機関の医師のみアクセス可能。
-     * 必要ロール: {@code ROLE_医療機関_医師}
+     * 必要ロール: {@code ROLE_MEDICAL_INSTITUTION_DOCTOR}
      */
     @GetMapping("/medical/doctor")
-    @PreAuthorize("hasRole('医療機関_医師')")
+    @PreAuthorize("hasRole('MEDICAL_INSTITUTION_DOCTOR')")
     public Map<String, Object> medicalDoctor(Authentication authentication) {
         return buildResponse(
-            "医療機関 - 医師専用エンドポイント",
-            "医療機関に所属する医師のみアクセスできます。",
+            "Medical Institution - Doctor Endpoint",
+            "Access allowed for doctors in medical-institution group.",
             authentication
         );
     }
 
     /**
      * 医療機関の職員のみアクセス可能。
-     * 必要ロール: {@code ROLE_医療機関_職員}
+     * 必要ロール: {@code ROLE_MEDICAL_INSTITUTION_STAFF}
      */
     @GetMapping("/medical/staff")
-    @PreAuthorize("hasRole('医療機関_職員')")
+    @PreAuthorize("hasRole('MEDICAL_INSTITUTION_STAFF')")
     public Map<String, Object> medicalStaff(Authentication authentication) {
         return buildResponse(
-            "医療機関 - 職員専用エンドポイント",
-            "医療機関に所属する職員のみアクセスできます。",
+            "Medical Institution - Staff Endpoint",
+            "Access allowed for staff in medical-institution group.",
             authentication
         );
     }
@@ -62,28 +62,28 @@ public class AuthorizationDemoController {
 
     /**
      * 非医療機関の医師のみアクセス可能。
-     * 必要ロール: {@code ROLE_非医療機関_医師}
+     * 必要ロール: {@code ROLE_NON_MEDICAL_INSTITUTION_DOCTOR}
      */
     @GetMapping("/nonmedical/doctor")
-    @PreAuthorize("hasRole('非医療機関_医師')")
+    @PreAuthorize("hasRole('NON_MEDICAL_INSTITUTION_DOCTOR')")
     public Map<String, Object> nonmedicalDoctor(Authentication authentication) {
         return buildResponse(
-            "非医療機関 - 医師専用エンドポイント",
-            "非医療機関に所属する医師のみアクセスできます。",
+            "Non-Medical Institution - Doctor Endpoint",
+            "Access allowed for doctors in non-medical-institution group.",
             authentication
         );
     }
 
     /**
      * 非医療機関の職員のみアクセス可能。
-     * 必要ロール: {@code ROLE_非医療機関_職員}
+     * 必要ロール: {@code ROLE_NON_MEDICAL_INSTITUTION_STAFF}
      */
     @GetMapping("/nonmedical/staff")
-    @PreAuthorize("hasRole('非医療機関_職員')")
+    @PreAuthorize("hasRole('NON_MEDICAL_INSTITUTION_STAFF')")
     public Map<String, Object> nonmedicalStaff(Authentication authentication) {
         return buildResponse(
-            "非医療機関 - 職員専用エンドポイント",
-            "非医療機関に所属する職員のみアクセスできます。",
+            "Non-Medical Institution - Staff Endpoint",
+            "Access allowed for staff in non-medical-institution group.",
             authentication
         );
     }

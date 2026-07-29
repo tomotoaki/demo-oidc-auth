@@ -257,15 +257,15 @@ const isAdmin = computed(() =>
 const displayRoles = computed(() =>
   (user.value.roles || []).filter(r =>
     r === 'ROLE_ADMIN' || r === 'ROLE_USER' || r === 'ROLE_PREVIOUS_ADMINISTRATOR'
-    || r.startsWith('ROLE_医療機関_') || r.startsWith('ROLE_非医療機関_')
+    || r.startsWith('ROLE_MEDICAL_INSTITUTION_') || r.startsWith('ROLE_NON_MEDICAL_INSTITUTION_')
   )
 );
 
 const getRoleBadgeClass = (role) => {
   if (role === 'ROLE_ADMIN') return 'badge-admin';
   if (role === 'ROLE_PREVIOUS_ADMINISTRATOR') return 'badge-prev-admin';
-  if (role.includes('医療機関')) return 'badge-medical';
-  if (role.includes('非医療機関')) return 'badge-nonmedical';
+  if (role.includes('MEDICAL_INSTITUTION') && !role.includes('NON_MEDICAL')) return 'badge-medical';
+  if (role.includes('NON_MEDICAL')) return 'badge-nonmedical';
   return 'badge-user';
 };
 
@@ -383,8 +383,8 @@ const checkAccessToken = async () => {
 const AUTH_ENDPOINTS = [
   {
     key: 'medical-doctor',
-    label: '医療機関 × 医師',
-    role: 'ROLE_医療機関_医師',
+    label: 'medical-institution × doctor',
+    role: 'ROLE_MEDICAL_INSTITUTION_DOCTOR',
     url: 'http://localhost:8080/api/v2/api/medical/doctor',
     color: 'medical-doctor',
     icon: '🏥',
@@ -392,8 +392,8 @@ const AUTH_ENDPOINTS = [
   },
   {
     key: 'medical-staff',
-    label: '医療機関 × 職員',
-    role: 'ROLE_医療機関_職員',
+    label: 'medical-institution × staff',
+    role: 'ROLE_MEDICAL_INSTITUTION_STAFF',
     url: 'http://localhost:8080/api/v2/api/medical/staff',
     color: 'medical-staff',
     icon: '📖',
@@ -401,8 +401,8 @@ const AUTH_ENDPOINTS = [
   },
   {
     key: 'nonmedical-doctor',
-    label: '非医療機関 × 医師',
-    role: 'ROLE_非医療機関_医師',
+    label: 'non-medical-institution × doctor',
+    role: 'ROLE_NON_MEDICAL_INSTITUTION_DOCTOR',
     url: 'http://localhost:8080/api/v2/api/nonmedical/doctor',
     color: 'nonmedical-doctor',
     icon: '🏛️',
@@ -410,8 +410,8 @@ const AUTH_ENDPOINTS = [
   },
   {
     key: 'nonmedical-staff',
-    label: '非医療機関 × 職員',
-    role: 'ROLE_非医療機関_職員',
+    label: 'non-medical-institution × staff',
+    role: 'ROLE_NON_MEDICAL_INSTITUTION_STAFF',
     url: 'http://localhost:8080/api/v2/api/nonmedical/staff',
     color: 'nonmedical-staff',
     icon: '💼',

@@ -188,16 +188,28 @@ public class SecurityConfig {
             }
 
             // ④ groups × clientRoles の組み合わせで複合 ROLE_ を生成
-            // 例: 医療機関 × 医師 → ROLE_医療機関_医師
+            // 例: medical-institution × doctor → ROLE_MEDICAL_INSTITUTION_DOCTOR
             for (String group : groups) {
                 for (String clientRole : clientRoles) {
-                    authorities.add(new SimpleGrantedAuthority("ROLE_" + group + "_" + clientRole));
+                    String roleName = formatRoleSegment(group) + "_" + formatRoleSegment(clientRole);
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + roleName));
                 }
             }
 
             return authorities;
         });
         return converter;
+    }
+
+    /**
+     * ロール要素文字列を大文字に変換し、ハイフン等をアンダースコアに置き換える。
+     * 例: "medical-institution" -> "MEDICAL_INSTITUTION"
+     */
+    private String formatRoleSegment(String segment) {
+        if (segment == null) {
+            return "";
+        }
+        return segment.replace("-", "_").toUpperCase();
     }
 
     /**

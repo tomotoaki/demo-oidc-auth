@@ -22,25 +22,25 @@
     "client": {
       "demo-oidc-auth-server": [
         {
-          "name": "医師",
-          "description": "医師ロール"
+          "name": "doctor",
+          "description": "Doctor Role"
         },
         {
-          "name": "職員",
-          "description": "職員ロール"
+          "name": "staff",
+          "description": "Staff Role"
         }
       ]
     }
   },
   "groups": [
     {
-      "name": "医療機関",
-      "path": "/医療機関",
+      "name": "medical-institution",
+      "path": "/medical-institution",
       "subGroups": []
     },
     {
-      "name": "非医療機関",
-      "path": "/非医療機関",
+      "name": "non-medical-institution",
+      "path": "/non-medical-institution",
       "subGroups": []
     }
   ],
@@ -242,10 +242,10 @@
       "realmRoles": ["ADMIN"]
     },
     {
-      "username": "医療機関-医師",
+      "username": "medical-institution-doctor",
       "email": "doctor-medical@example.com",
-      "firstName": "医師",
-      "lastName": "医療機関",
+      "firstName": "Doctor",
+      "lastName": "MedicalInstitution",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -256,16 +256,16 @@
         }
       ],
       "realmRoles": ["USER"],
-      "groups": ["/医療機関"],
+      "groups": ["/medical-institution"],
       "clientRoles": {
-        "demo-oidc-auth-server": ["医師"]
+        "demo-oidc-auth-server": ["doctor"]
       }
     },
     {
-      "username": "医療機関-職員",
+      "username": "medical-institution-staff",
       "email": "staff-medical@example.com",
-      "firstName": "職員",
-      "lastName": "医療機関",
+      "firstName": "Staff",
+      "lastName": "MedicalInstitution",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -276,16 +276,16 @@
         }
       ],
       "realmRoles": ["USER"],
-      "groups": ["/医療機関"],
+      "groups": ["/medical-institution"],
       "clientRoles": {
-        "demo-oidc-auth-server": ["職員"]
+        "demo-oidc-auth-server": ["staff"]
       }
     },
     {
-      "username": "非医療機関-医師",
+      "username": "non-medical-institution-doctor",
       "email": "doctor-nonmedical@example.com",
-      "firstName": "医師",
-      "lastName": "非医療機関",
+      "firstName": "Doctor",
+      "lastName": "NonMedicalInstitution",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -296,16 +296,16 @@
         }
       ],
       "realmRoles": ["USER"],
-      "groups": ["/非医療機関"],
+      "groups": ["/non-medical-institution"],
       "clientRoles": {
-        "demo-oidc-auth-server": ["医師"]
+        "demo-oidc-auth-server": ["doctor"]
       }
     },
     {
-      "username": "非医療機関-職員",
+      "username": "non-medical-institution-staff",
       "email": "staff-nonmedical@example.com",
-      "firstName": "職員",
-      "lastName": "非医療機関",
+      "firstName": "Staff",
+      "lastName": "NonMedicalInstitution",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
@@ -316,9 +316,9 @@
         }
       ],
       "realmRoles": ["USER"],
-      "groups": ["/非医療機関"],
+      "groups": ["/non-medical-institution"],
       "clientRoles": {
-        "demo-oidc-auth-server": ["職員"]
+        "demo-oidc-auth-server": ["staff"]
       }
     }
   ]

@@ -152,11 +152,19 @@ public class UserController {
         List<String> clientRoles = extractClientRolesFromJwt(jwt);
         for (String group : groups) {
             for (String clientRole : clientRoles) {
-                result.add("ROLE_" + group + "_" + clientRole);
+                String roleName = formatRoleSegment(group) + "_" + formatRoleSegment(clientRole);
+                result.add("ROLE_" + roleName);
             }
         }
 
         return result;
+    }
+
+    private String formatRoleSegment(String segment) {
+        if (segment == null) {
+            return "";
+        }
+        return segment.replace("-", "_").toUpperCase();
     }
 
     /**
