@@ -18,11 +18,13 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -100,7 +102,7 @@ public class SecurityConfig {
                         // Keycloak realm_access.roles 及び groups×clientRoles を ROLE_ プレフィックス付きでマッピング
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter(authoritiesConverter))))
                 .logout(logout -> logout
-                        .logoutSuccessUrl(VUE_BASE_URL + "/login")
+                        .logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository))
                         .invalidateHttpSession(true)
                         .deleteCookies("SESSION"))
                 .exceptionHandling(exceptions -> exceptions
@@ -132,6 +134,21 @@ public class SecurityConfig {
         authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
 
         return authorizedClientManager;
+    }
+
+    /**
+     * OIDC RP-Initiated Logout ハンドラー。
+     * ログアウト時に Keycloak の End Session エンドポイントへリダイレクトし、
+     * Keycloak 側の SSO セッションも終了させる。
+     */
+    @Bean
+    public LogoutSuccessHandler oidcLogoutSuccessHandler(
+            ClientRegistrationRepository clientRegistrationRepository) {
+        OidcClientInitiatedLogoutSuccessHandler handler = new OidcClientInitiatedLogoutSuccessHandler(
+                clientRegistrationRepository);
+        // ログアウト後に Vue アプリのログイン画面へリダイレクト
+        handler.setPostLogoutRedirectUri(VUE_BASE_URL + "/login");
+        return handler;
     }
 
     /**

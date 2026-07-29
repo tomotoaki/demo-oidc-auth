@@ -64,7 +64,7 @@
         "http://localhost:5173"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:5173",
+        "post.logout.redirect.uris": "http://localhost:5173/login",
         "standard.token.exchange.enabled": "true"
       },
       "protocolMappers": [
@@ -223,7 +223,9 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["USER"]
+      "realmRoles": [
+        "USER"
+      ]
     },
     {
       "username": "admin",
@@ -239,7 +241,9 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["ADMIN"]
+      "realmRoles": [
+        "ADMIN"
+      ]
     },
     {
       "username": "medical-institution-doctor",
@@ -255,10 +259,16 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["USER"],
-      "groups": ["/medical-institution"],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution"
+      ],
       "clientRoles": {
-        "demo-oidc-auth-server": ["doctor"]
+        "demo-oidc-auth-server": [
+          "doctor"
+        ]
       }
     },
     {
@@ -275,10 +285,16 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["USER"],
-      "groups": ["/medical-institution"],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/medical-institution"
+      ],
       "clientRoles": {
-        "demo-oidc-auth-server": ["staff"]
+        "demo-oidc-auth-server": [
+          "staff"
+        ]
       }
     },
     {
@@ -295,10 +311,16 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["USER"],
-      "groups": ["/non-medical-institution"],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution"
+      ],
       "clientRoles": {
-        "demo-oidc-auth-server": ["doctor"]
+        "demo-oidc-auth-server": [
+          "doctor"
+        ]
       }
     },
     {
@@ -315,10 +337,16 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["USER"],
-      "groups": ["/non-medical-institution"],
+      "realmRoles": [
+        "USER"
+      ],
+      "groups": [
+        "/non-medical-institution"
+      ],
       "clientRoles": {
-        "demo-oidc-auth-server": ["staff"]
+        "demo-oidc-auth-server": [
+          "staff"
+        ]
       }
     }
   ]
