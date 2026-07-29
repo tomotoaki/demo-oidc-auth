@@ -41,7 +41,7 @@ OIDC認証のサンプルコード
 - サンプル名は用途が分かるよう `demo-oidc-auth-mobile-bff` としている。
 
 ### IdP (Keycloak 26.6.3)
-- demoレルム、demo-oidc-auth-client-bff、demo-oidc-auth-mobile-bff、demo-oidc-auth-server、demoユーザをインポートする。
+- demoレルム、demo-oidc-auth-client-bff、demo-oidc-auth-mobile-bff、demo-oidc-auth-server、並びに各種テスト・認可デモ用ユーザー（`demo`, `admin`, `medical-institution-doctor` 等）をインポートする。
 - `http://localhost:8180` で起動する。
 - `demo-oidc-auth-client-bff` のリダイレクトURIに `http://localhost:8080/login/oauth2/code/keycloak` を設定する。
 - `demo-oidc-auth-client-bff` のWeb Origins (CORS許可) に `http://localhost:5173` を設定する。
@@ -398,3 +398,51 @@ OIDC / OAuth2 環境下における異なるなりすましアプローチの比
 2. 画面上部に緑色のなりすましバナーが表示され、ユーザー表示が `demo` に切り替わります。
 3. ユーザー情報の「ユーザーID (sub)」欄が `demo` ユーザーの本物のUUIDになり、**「実際のJWT username」も `demo` に切り替わっていること**を確認します。
 4. 「元に戻す」ボタンをクリックし、元の `admin` 表示に戻ることを確認します。
+
+---
+
+## グループ×クライアントロール認可制御機能
+
+Keycloak で設定した **グループ** と **クライアントロール** の組み合わせに基づき、複合ロール (`ROLE_グループ名_ロール名`) を動的に生成して Spring Security の `@PreAuthorize` による細かな認可制御を行うサンプルです。
+
+### 構成定義
+
+#### 1. グループとクライアントロール
+* **グループ**:
+  * `medical-institution`（医療機関）
+  * `non-medical-institution`（非保険医療機関）
+* **クライアントロール** (`demo-oidc-auth-server` クライアント):
+  * `doctor`（医師）
+  * `staff`（職員）
+
+#### 2. デモユーザー一覧（パスワードは一律 `password`）
+
+| ユーザー名 | 所属グループ | クライアントロール | 生成される `ROLE_` |
+|---|---|---|---|
+| `medical-institution-doctor` | `medical-institution` | `doctor` | `ROLE_MEDICAL_INSTITUTION_DOCTOR` |
+| `medical-institution-staff` | `medical-institution` | `staff` | `ROLE_MEDICAL_INSTITUTION_STAFF` |
+| `non-medical-institution-doctor` | `non-medical-institution` | `doctor` | `ROLE_NON_MEDICAL_INSTITUTION_DOCTOR` |
+| `non-medical-institution-staff` | `non-medical-institution` | `staff` | `ROLE_NON_MEDICAL_INSTITUTION_STAFF` |
+
+※ `ROLE_` 生成処理では、グループ名およびロール名を大文字化し、ハイフン (`-`) をアンダースコア (`_`) に自動置換して結合します。
+
+### 認可ルールと検証用エンドポイント
+
+| エンドポイント | 必要ロール (Spring Security) | アクセス可能なユーザー |
+|---|---|---|
+| `/api/medical/doctor` | `@PreAuthorize("hasRole('MEDICAL_INSTITUTION_DOCTOR')")` | `medical-institution-doctor` |
+| `/api/medical/staff` | `@PreAuthorize("hasRole('MEDICAL_INSTITUTION_STAFF')")` | `medical-institution-staff` |
+| `/api/nonmedical/doctor` | `@PreAuthorize("hasRole('NON_MEDICAL_INSTITUTION_DOCTOR')")` | `non-medical-institution-doctor` |
+| `/api/nonmedical/staff` | `@PreAuthorize("hasRole('NON_MEDICAL_INSTITUTION_STAFF')")` | `non-medical-institution-staff` |
+
+### 動作確認手順
+
+1. **Keycloak Realm のインポート**
+   - 設定が反映された `keycloak/demo-realm.json` を Keycloak にインポートして起動します。
+2. **ログイン**
+   - ブラウザで `http://localhost:5173/` にアクセスし、上記のデモユーザー（例: `medical-institution-doctor` / `password`）でログインします。
+3. **認可デモパネルでの確認**
+   - ホーム画面下部の **「🔐 グループ×ロール 認可デモ」** パネルを確認します。
+   - 自身が保持するロールに対応する API ボタン（例: `medical-institution × doctor`）をクリックすると **✅ 成功！アクセス可**（HTTP 200）と表示されます。
+   - 保持していないロールに対応する API ボタンをクリックすると **🚫 アクセス拒否 (403 Forbidden)** が返されることを確認できます。
+

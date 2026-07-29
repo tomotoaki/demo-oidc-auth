@@ -19,22 +19,28 @@ import java.util.Map;
  * ユーザー情報 API。
  *
  * <h3>通常状態</h3>
- * <p>JWT クレームからユーザー情報を返す。</p>
+ * <p>
+ * JWT クレームからユーザー情報を返す。
+ * </p>
  *
  * <h3>スイッチユーザー状態 (Approach A: セッションスイッチ)</h3>
- * <p>{@link SwitchedJwtAuthenticationToken} を検知し、
+ * <p>
+ * {@link SwitchedJwtAuthenticationToken} を検知し、
  * 切替先ユーザー名で応答する。JWT 自体は元ユーザー (admin) のものであるため、
- * {@code actual_jwt_username} フィールドで元のJWT情報も開示する。</p>
+ * {@code actual_jwt_username} フィールドで元のJWT情報も開示する。
+ * </p>
  *
  * <h3>スイッチユーザー状態 (Approach B: Token Exchange)</h3>
- * <p>JWT 自体が切替先ユーザーの本物であるため、{@code sub} / {@code email} も
- * 切替先ユーザーのものになる。</p>
+ * <p>
+ * JWT 自体が切替先ユーザーの本物であるため、{@code sub} / {@code email} も
+ * 切替先ユーザーのものになる。
+ * </p>
  */
 @RestController
 public class UserController {
 
-    private static final DateTimeFormatter JST_FORMATTER =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Tokyo"));
+    private static final DateTimeFormatter JST_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            .withZone(ZoneId.of("Asia/Tokyo"));
 
     @GetMapping("/user")
     public Map<String, Object> user(
@@ -47,7 +53,8 @@ public class UserController {
 
         Map<String, Object> claims = new HashMap<>();
 
-        // ─── ロール情報 (共通) ───────────────────────────────────────────────────────────────────
+        // ─── ロール情報 (共通)
+        // ───────────────────────────────────────────────────────────────────
         List<String> roles = extractRolesFromJwt(jwt);
         claims.put("roles", roles);
 
@@ -79,9 +86,9 @@ public class UserController {
     private void buildNormalUserResponse(Map<String, Object> claims, Jwt jwt) {
         claims.put("sub", jwt.getSubject() != null ? jwt.getSubject() : "");
         claims.put("preferred_username",
-            jwt.getClaimAsString("preferred_username") != null ? jwt.getClaimAsString("preferred_username") : "");
+                jwt.getClaimAsString("preferred_username") != null ? jwt.getClaimAsString("preferred_username") : "");
         claims.put("email",
-            jwt.getClaimAsString("email") != null ? jwt.getClaimAsString("email") : "");
+                jwt.getClaimAsString("email") != null ? jwt.getClaimAsString("email") : "");
         claims.put("is_switched", false);
     }
 
@@ -97,15 +104,16 @@ public class UserController {
             // JWT 自体が切替先ユーザーの本物 → クレームをそのまま返す
             claims.put("sub", jwt.getSubject() != null ? jwt.getSubject() : "");
             claims.put("preferred_username",
-                jwt.getClaimAsString("preferred_username") != null
-                    ? jwt.getClaimAsString("preferred_username") : "");
+                    jwt.getClaimAsString("preferred_username") != null
+                            ? jwt.getClaimAsString("preferred_username")
+                            : "");
             claims.put("email",
-                jwt.getClaimAsString("email") != null ? jwt.getClaimAsString("email") : "");
+                    jwt.getClaimAsString("email") != null ? jwt.getClaimAsString("email") : "");
         } else {
             // ── Approach A: セッションスイッチ ──────────────────────────────────
             // JWT は元ユーザー (admin) のまま → 切替先ユーザー名で見せかける
             claims.put("sub",
-                "(session switch: JWT belongs to '" + switched.getOriginalUsername() + "')");
+                    "(session switch: JWT belongs to '" + switched.getOriginalUsername() + "')");
             claims.put("preferred_username", switched.getSwitchedToUsername());
             claims.put("email", "(not available in session switch — use Token Exchange for real email)");
         }
@@ -120,13 +128,14 @@ public class UserController {
         claims.put("actual_jwt_username", jwt.getClaimAsString("preferred_username"));
     }
 
-    // ─── ユーティリティ ────────────────────────────────────────────────────────────────────────
+    // ─── ユーティリティ
+    // ────────────────────────────────────────────────────────────────────────
 
     /**
      * JWT の {@code realm_access.roles} から {@code ROLE_} プレフィックス付きリールリストを返す。
-     * また、{@code groups} × {@code resource_access.demo-oidc-auth-server.roles} の複合ロールも包含する。
+     * また、{@code groups} × {@code resource_access.demo-oidc-auth-server.roles}
+     * の複合ロールも包含する。
      */
-    @SuppressWarnings("unchecked")
     private List<String> extractRolesFromJwt(Jwt jwt) {
         List<String> result = new ArrayList<>();
 
@@ -170,7 +179,6 @@ public class UserController {
     /**
      * JWT の {@code groups} クレームを返す。
      */
-    @SuppressWarnings("unchecked")
     private List<String> extractGroupsFromJwt(Jwt jwt) {
         Object groups = jwt.getClaim("groups");
         if (groups instanceof Collection<?> groupList) {
@@ -188,7 +196,6 @@ public class UserController {
     /**
      * JWT の {@code resource_access.demo-oidc-auth-server.roles} からクライアントロールリストを返す。
      */
-    @SuppressWarnings("unchecked")
     private List<String> extractClientRolesFromJwt(Jwt jwt) {
         Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
         if (resourceAccess == null) {

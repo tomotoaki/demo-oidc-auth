@@ -2,17 +2,16 @@ package com.example.demoidcauth.config;
 
 import com.example.demoidcauth.filter.OidcSwitchUserFilter;
 import com.example.demoidcauth.filter.TokenRefreshFilter;
+import com.example.demoidcauth.security.KeycloakGrantedAuthoritiesConverter;
 import com.example.demoidcauth.service.TokenExchangeService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -34,10 +33,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 @Configuration
 @EnableWebSecurity
@@ -51,10 +46,10 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain h2ConsoleSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/h2-console/**")
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-            .csrf(csrf -> csrf.disable())
-            .headers(headers -> headers.frameOptions(frame -> frame.disable()));
+                .securityMatcher("/h2-console/**")
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .csrf(csrf -> csrf.disable())
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()));
         return http.build();
     }
 
@@ -65,64 +60,59 @@ public class SecurityConfig {
             CorsConfigurationSource corsConfigurationSource,
             OAuth2AuthorizedClientManager authorizedClientManager,
             JwtDecoder jwtDecoder,
+            KeycloakGrantedAuthoritiesConverter authoritiesConverter,
             TokenExchangeService tokenExchangeService,
             OAuth2AuthorizedClientRepository authorizedClientRepository,
             ClientRegistrationRepository clientRegistrationRepository) throws Exception {
 
-        TokenRefreshFilter tokenRefreshFilter = new TokenRefreshFilter(authorizedClientManager, jwtDecoder);
+        TokenRefreshFilter tokenRefreshFilter = new TokenRefreshFilter(authorizedClientManager, jwtDecoder,
+                authoritiesConverter);
 
         // OidcSwitchUserFilter: SwitchUserFilter 互換の OIDC 対応版
-        // POST /login/impersonate  → ユーザー切替
+        // POST /login/impersonate → ユーザー切替
         // POST /logout/impersonate → ユーザー切替解除
         OidcSwitchUserFilter switchUserFilter = new OidcSwitchUserFilter(
-            VUE_BASE_URL + "/",     // 切替成功後のリダイレクト先 (Vue アプリ)
-            VUE_BASE_URL + "/",     // 切替解除後のリダイレクト先 (Vue アプリ)
-            tokenExchangeService,
-            authorizedClientRepository,
-            clientRegistrationRepository
-        );
+                VUE_BASE_URL + "/", // 切替成功後のリダイレクト先 (Vue アプリ)
+                VUE_BASE_URL + "/", // 切替解除後のリダイレクト先 (Vue アプリ)
+                tokenExchangeService,
+                authorizedClientRepository,
+                clientRegistrationRepository);
 
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            .csrf(csrf -> csrf.disable()) // CORS経由のデモのため簡易的に無効化
-            .authorizeHttpRequests(auth -> auth
-                // スイッチ操作は認証済みユーザーのみ (ROLE_ADMIN チェックはフィルター内で実施)
-                // ※ POST /login/impersonate を /login/** の permitAll より先に配置して上書き
-                .requestMatchers(HttpMethod.POST, "/login/impersonate").authenticated()
-                .requestMatchers(HttpMethod.POST, "/logout/impersonate").authenticated()
-                // OAuth2 ログインフロー系 (認証不要)
-                .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
-                // ユーザー情報 API (認証必須)
-                .requestMatchers("/user/**").authenticated()
-                // グループ×クライアントロール 認可デモ API
-                // @PreAuthorize でメソッドレベル認可を使用するため、ここでは authenticated() のみ
-                .requestMatchers("/api/medical/**", "/api/nonmedical/**").authenticated()
-                .anyRequest().authenticated()
-            )
-            .oauth2Login(oauth2 -> oauth2
-                .successHandler(new SimpleUrlAuthenticationSuccessHandler(VUE_BASE_URL + "/"))
-            )
-            .oauth2ResourceServer(rs -> rs
-                // Keycloak realm_access.roles を ROLE_ プレフィックス付きでマッピング
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
-            )
-            .logout(logout -> logout
-                .logoutSuccessUrl(VUE_BASE_URL + "/login")
-                .invalidateHttpSession(true)
-                .deleteCookies("SESSION")
-            )
-            .exceptionHandling(exceptions -> exceptions
-                .defaultAuthenticationEntryPointFor(
-                    jwtAuthenticationEntryPoint(),
-                    request -> request.getRequestURI().startsWith("/api/v2/user")
-                )
-            )
-            // フィルター順序:
-            //   TokenRefreshFilter (トークンリフレッシュ + スイッチ状態検知)
-            //     → OidcSwitchUserFilter (スイッチ操作の受付)
-            //       → BearerTokenAuthenticationFilter
-            .addFilterBefore(tokenRefreshFilter, BearerTokenAuthenticationFilter.class)
-            .addFilterAfter(switchUserFilter, TokenRefreshFilter.class);
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .csrf(csrf -> csrf.disable()) // CORS経由のデモのため簡易的に無効化
+                .authorizeHttpRequests(auth -> auth
+                        // スイッチ操作は認証済みユーザーのみ (ROLE_ADMIN チェックはフィルター内で実施)
+                        // ※ POST /login/impersonate を /login/** の permitAll より先に配置して上書き
+                        .requestMatchers(HttpMethod.POST, "/login/impersonate").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/logout/impersonate").authenticated()
+                        // OAuth2 ログインフロー系 (認証不要)
+                        .requestMatchers("/login/**", "/oauth2/**", "/error").permitAll()
+                        // ユーザー情報 API (認証必須)
+                        .requestMatchers("/user/**").authenticated()
+                        // グループ×クライアントロール 認可デモ API
+                        // @PreAuthorize でメソッドレベル認可を使用するため、ここでは authenticated() のみ
+                        .requestMatchers("/api/medical/**", "/api/nonmedical/**").authenticated()
+                        .anyRequest().authenticated())
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(new SimpleUrlAuthenticationSuccessHandler(VUE_BASE_URL + "/")))
+                .oauth2ResourceServer(rs -> rs
+                        // Keycloak realm_access.roles 及び groups×clientRoles を ROLE_ プレフィックス付きでマッピング
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter(authoritiesConverter))))
+                .logout(logout -> logout
+                        .logoutSuccessUrl(VUE_BASE_URL + "/login")
+                        .invalidateHttpSession(true)
+                        .deleteCookies("SESSION"))
+                .exceptionHandling(exceptions -> exceptions
+                        .defaultAuthenticationEntryPointFor(
+                                jwtAuthenticationEntryPoint(),
+                                request -> request.getRequestURI().startsWith("/api/v2/user")))
+                // フィルター順序:
+                // TokenRefreshFilter (トークンリフレッシュ + スイッチ状態検知)
+                // → OidcSwitchUserFilter (スイッチ操作の受付)
+                // → BearerTokenAuthenticationFilter
+                .addFilterBefore(tokenRefreshFilter, BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(switchUserFilter, TokenRefreshFilter.class);
 
         return http.build();
     }
@@ -132,98 +122,28 @@ public class SecurityConfig {
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizedClientRepository authorizedClientRepository) {
 
-        OAuth2AuthorizedClientProvider authorizedClientProvider =
-                OAuth2AuthorizedClientProviderBuilder.builder()
-                        .authorizationCode()
-                        .refreshToken()
-                        .build();
+        OAuth2AuthorizedClientProvider authorizedClientProvider = OAuth2AuthorizedClientProviderBuilder.builder()
+                .authorizationCode()
+                .refreshToken()
+                .build();
 
-        DefaultOAuth2AuthorizedClientManager authorizedClientManager =
-                new DefaultOAuth2AuthorizedClientManager(
-                        clientRegistrationRepository, authorizedClientRepository);
+        DefaultOAuth2AuthorizedClientManager authorizedClientManager = new DefaultOAuth2AuthorizedClientManager(
+                clientRegistrationRepository, authorizedClientRepository);
         authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
 
         return authorizedClientManager;
     }
 
     /**
-     * Keycloak JWT のロール情報を Spring Security の {@link GrantedAuthority} にマッピングする Converter。
-     *
-     * <h3>マッピング内容</h3>
-     * <ul>
-     *   <li>{@code realm_access.roles} → {@code ROLE_ロール名}（例: ROLE_ADMIN, ROLE_USER）</li>
-     *   <li>{@code groups} × {@code resource_access.demo-oidc-auth-server.roles} の組み合わせ
-     *       → {@code ROLE_グループ名_クライアントロール名}（例: ROLE_医療機関_医師）</li>
-     * </ul>
+     * Keycloak JWT のロール情報を Spring Security の {@link GrantedAuthority} にマッピングする
+     * Converter。
      */
     @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+    public JwtAuthenticationConverter jwtAuthenticationConverter(
+            KeycloakGrantedAuthoritiesConverter authoritiesConverter) {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            List<GrantedAuthority> authorities = new ArrayList<>();
-
-            // ① realm_access.roles → ROLE_ロール名
-            Map<String, Object> realmAccess = jwt.getClaim("realm_access");
-            if (realmAccess != null) {
-                Object rolesObj = realmAccess.get("roles");
-                if (rolesObj instanceof Collection<?> roles) {
-                    roles.stream()
-                        .filter(r -> r instanceof String)
-                        .map(r -> new SimpleGrantedAuthority("ROLE_" + (String) r))
-                        .forEach(authorities::add);
-                }
-            }
-
-            // ② groups クレームを取得
-            List<String> groups = extractStringList(jwt.getClaim("groups"));
-
-            // ③ resource_access.demo-oidc-auth-server.roles からクライアントロールを取得
-            List<String> clientRoles = List.of();
-            Map<String, Object> resourceAccess = jwt.getClaim("resource_access");
-            if (resourceAccess != null) {
-                Object serverAccess = resourceAccess.get("demo-oidc-auth-server");
-                if (serverAccess instanceof Map<?, ?> serverMap) {
-                    clientRoles = extractStringList(serverMap.get("roles"));
-                }
-            }
-
-            // ④ groups × clientRoles の組み合わせで複合 ROLE_ を生成
-            // 例: medical-institution × doctor → ROLE_MEDICAL_INSTITUTION_DOCTOR
-            for (String group : groups) {
-                for (String clientRole : clientRoles) {
-                    String roleName = formatRoleSegment(group) + "_" + formatRoleSegment(clientRole);
-                    authorities.add(new SimpleGrantedAuthority("ROLE_" + roleName));
-                }
-            }
-
-            return authorities;
-        });
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
         return converter;
-    }
-
-    /**
-     * ロール要素文字列を大文字に変換し、ハイフン等をアンダースコアに置き換える。
-     * 例: "medical-institution" -> "MEDICAL_INSTITUTION"
-     */
-    private String formatRoleSegment(String segment) {
-        if (segment == null) {
-            return "";
-        }
-        return segment.replace("-", "_").toUpperCase();
-    }
-
-    /**
-     * Object を {@code List<String>} に変換するユーティリティ。
-     * {@code Collection<?>} の各要素を String にキャストし、null を除外する。
-     */
-    private List<String> extractStringList(Object obj) {
-        if (obj instanceof Collection<?> col) {
-            return col.stream()
-                .filter(e -> e instanceof String)
-                .map(e -> (String) e)
-                .toList();
-        }
-        return List.of();
     }
 
     @Bean
@@ -237,7 +157,7 @@ public class SecurityConfig {
                 // トークン検証エラーの詳細をログに出力
                 Throwable cause = authException.getCause();
                 log.error("JWT Authentication failed. Exception type: {}, Message: {}",
-                    authException.getClass().getSimpleName(), authException.getMessage());
+                        authException.getClass().getSimpleName(), authException.getMessage());
                 if (cause != null) {
                     log.error("Caused by: {} - {}", cause.getClass().getSimpleName(), cause.getMessage());
                 }
