@@ -1,111 +1,301 @@
-# Spring Security: フォーム認証 → Keycloak OIDC/JWT 移行設計メモ
+# Spring Security: フォーム認証 → Keycloak OIDC/JWT 移行設計
 
-## 1. 背景・要件
+## 1. 要件・前提
 
-- 既存システムはフォーム認証(`UserDetails`ベース)
-- 認証基盤をKeycloak(OIDC)へ移行する
-- 移行後も既存コードとの互換性のため`UserDetails`を残したい
-- 権限(Authorities)は以下を合成する
-  - Keycloakの `realm roles`
-  - Keycloakの `client roles`
-  - Keycloakの `groups`
-  - アプリ固有にDBで管理する追加ロール(**方針C:マージ方式**)
-- 最終的な認証方式は **アクセストークンをサーバ側セッションに保持し、`SecurityContextRepository`でリクエスト毎に復元する** 構成(BFF的なJWT Resource Server構成)
-
----
-
-## 2. `UserDetails` と `OidcUser` の共存
-
-`UserDetails`と`OidcUser`(`OAuth2User`を継承)はメソッドがほぼ衝突しないため、1クラスで両方実装可能。
-
-| インターフェース | 主なメソッド |
-|---|---|
-| `UserDetails` | `getAuthorities()`, `getPassword()`, `getUsername()`, `isAccountNonExpired()` 等 |
-| `OidcUser` | `getAuthorities()`(共通), `getAttributes()`, `getName()`, `getIdToken()`, `getUserInfo()`, `getClaims()` |
-
-- `getUsername()`(UserDetails)と`getName()`(OidcUser)は別メソッドなので共存可能
-- `getAuthorities()`はシグネチャが同一なので1実装で両方を満たせる
-- `getPassword()`はOIDCではパスワードを扱わないため`null`を返す実装で問題なし
-
-```java
-public class CustomOidcUser implements OidcUser, UserDetails {
-    private final OidcUser oidcUser;
-    private final Collection<? extends GrantedAuthority> authorities;
-    private final AppUser appUser; // ローカルDBのユーザーエンティティ
-
-    // OidcUser系メソッドはoidcUserに委譲
-    // UserDetails系メソッドはappUserベースで実装
-    // getAuthorities()はマージ済みのauthoritiesフィールドを返す
-}
-```
-
-**注意点**
-- `Authentication#getPrincipal()`の型はフォーム認証時`UserDetails`、移行後`OidcUser`実質`CustomOidcUser`
-- セッションを外部ストア(Redis等)に保存する場合、`Serializable`対応を要確認
-- `@PreAuthorize`等の既存認可ロジックは、Authoritiesの中身さえ揃えれば認証方式に依存させず流用可能
+- 認証基盤: フォーム認証 → Keycloak(OIDC)
+- DBユーザー情報の取得は現行どおり`UserDetails`として行う(変更しない)
+- Authoritiesは以下を**マージ**する(方針C)
+  - Keycloak: realm roles / client roles / groups
+  - DB: アプリ固有のローカルロール
+- 認証方式は次の2経路を**共存**させる
+  - **経路A(OAuth2 Login)**: ブラウザ、セッションCookie。OPから`OidcUser`を取得
+  - **経路B(Resource Server)**: 他サーバから受領したアクセストークン。`Jwt`をデコード
+- 設計原則: **`OidcUser`と`Jwt`を1つのクラスで無理に共存させない**。共通化するのは「抽出済みのAuthorities」のみで、claims(生データ)を共通の合流点にはしない
 
 ---
 
-## 3. Keycloakクレームの構造
+## 2. クラス構成
 
-```json
-{
-  "sub": "xxxx-xxxx",
-  "email": "user@example.com",
-  "groups": ["/dept-a", "/dept-a/team1"],
-  "realm_access": {
-    "roles": ["offline_access", "app-user", "app-admin"]
-  },
-  "resource_access": {
-    "my-client": { "roles": ["client-viewer", "client-editor"] },
-    "other-client": { "roles": ["other-role"] }
-  }
+| クラス/インターフェース | 実装するもの | 役割 |
+|---|---|---|
+| `AppUser` | (なし。JPAエンティティ) | DBのユーザーテーブル。データの入れ物のみ |
+| `AppUserDetails` | `UserDetails` | DB由来のユーザー情報。現行実装を踏襲。キーは`sub`(Keycloak不変ID) |
+| `AppUserDetailsService` | - | `sub`でDBから`AppUserDetails`を取得(なければJIT作成) |
+| `AppAuthoritiesResolver` | - | Keycloak由来Authorities抽出 + DB由来Authoritiesとのマージ。両経路共通 |
+| `AppOidcUser` | `OidcUser`, `UserDetails` | 経路A専用のprincipal |
+| `AppOidcUserService` | `OidcUserService`を継承 | 経路Aで`AppOidcUser`を生成 |
+| `AppJwtPrincipal` | `UserDetails`のみ | 経路B専用のprincipal(`OidcUser`は実装しない) |
+| `AppJwtAuthenticationToken` | `AbstractAuthenticationToken`を継承 | 経路B用の`Authentication`。principalに`AppJwtPrincipal`を保持 |
+| `AppJwtAuthenticationConverter` | `Converter<Jwt, AbstractAuthenticationToken>` | 経路Bで`AppJwtAuthenticationToken`を生成 |
+
+### 依存関係
+
+```
+                AppUserDetailsService ──▶ AppUserDetails(UserDetails, DB由来)
+                                                  │
+                                                  ▼
+                                       AppAuthoritiesResolver
+                                  resolve(OidcUser, UserDetails)
+                                  resolve(Jwt, UserDetails)
+                                                  │
+                    ┌─────────────────────────────┴─────────────────────────────┐
+                    ▼                                                           ▼
+          経路A: AppOidcUser                                     経路B: AppJwtPrincipal
+       implements OidcUser, UserDetails                        implements UserDetails
+                    │                                                           │
+                    ▼                                                           ▼
+       OAuth2AuthenticationToken(標準)                        AppJwtAuthenticationToken(自前)
+```
+
+両経路の共通部分は**`AppUserDetailsService`と`AppAuthoritiesResolver`の2つのみ**。principal・Authenticationの実装クラスは経路ごとに完全分離する。
+
+---
+
+## 3. 実装
+
+### 3.1 DB由来のUserDetails(現行踏襲)
+
+```java
+public class AppUserDetails implements UserDetails {
+    private final String subject;      // Keycloak sub
+    private final String username;
+    private final Collection<? extends GrantedAuthority> localAuthorities;
+
+    @Override public String getUsername() { return username; }
+    @Override public Collection<? extends GrantedAuthority> getAuthorities() { return localAuthorities; }
+    @Override public String getPassword() { return null; }
+    @Override public boolean isAccountNonExpired() { return true; }
+    @Override public boolean isAccountNonLocked() { return true; }
+    @Override public boolean isCredentialsNonExpired() { return true; }
+    @Override public boolean isEnabled() { return true; }
+
+    public String getSubject() { return subject; }
 }
 ```
 
-- `groups`クレームはKeycloak側でMapper追加が必要(デフォルトでは含まれない)
-- `resource_access`はクライアント単位でネストしているため、自クライアントIDでのフィルタが必要
-
-### Authorities変換の実装方針
-
 ```java
-@Component
-public class KeycloakAuthoritiesConverter {
-    private final String clientId;
+@Service
+@RequiredArgsConstructor
+public class AppUserDetailsService {
+    private final AppUserRepository appUserRepository;
 
-    public Collection<GrantedAuthority> convert(Map<String, Object> claims) {
-        // realm_access.roles → "ROLE_" + role.toUpperCase()
-        // resource_access.<clientId>.roles → "ROLE_" + role.toUpperCase()
-        // groups → "GROUP_" + group名(スラッシュを置換)
+    public AppUserDetails loadBySubject(String subject, String emailHint) {
+        AppUser appUser = appUserRepository.findByKeycloakSub(subject)
+                .orElseGet(() -> appUserRepository.save(new AppUser(subject, emailHint)));
+
+        Collection<GrantedAuthority> local = appUser.getLocalAuthorities().stream()
+                .map(SimpleGrantedAuthority::new)
+                .collect(Collectors.toList());
+
+        return new AppUserDetails(subject, appUser.getEmail(), local);
     }
 }
 ```
 
-**設計判断ポイント**
-- roleとgroupで接頭辞を分けるか(`ROLE_` / `GROUP_`)は既存の`hasRole()`規約に合わせる
-- ネストしたgroup(`/dept-a/team1`)を階層のまま使うか末端のみ使うかは要件次第
+### 3.2 Authorities抽出・マージ(唯一の共通ポイント)
+
+```java
+@Component
+@RequiredArgsConstructor
+public class AppAuthoritiesResolver {
+
+    private final String clientId;
+
+    public Collection<GrantedAuthority> resolve(OidcUser oidcUser, UserDetails dbUserDetails) {
+        return merge(parseKeycloakRoleClaims(oidcUser.getClaims()), dbUserDetails.getAuthorities());
+    }
+
+    public Collection<GrantedAuthority> resolve(Jwt jwt, UserDetails dbUserDetails) {
+        return merge(parseKeycloakRoleClaims(jwt.getClaims()), dbUserDetails.getAuthorities());
+    }
+
+    private Collection<GrantedAuthority> parseKeycloakRoleClaims(Map<String, Object> claims) {
+        Set<GrantedAuthority> authorities = new HashSet<>();
+
+        Optional.ofNullable(claims.get("realm_access"))
+                .map(o -> (Map<?, ?>) o)
+                .map(m -> (Collection<?>) m.get("roles"))
+                .ifPresent(roles -> roles.forEach(r ->
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + r.toString().toUpperCase()))));
+
+        Optional.ofNullable(claims.get("resource_access"))
+                .map(o -> (Map<?, ?>) o)
+                .map(m -> (Map<?, ?>) m.get(clientId))
+                .map(m -> (Collection<?>) m.get("roles"))
+                .ifPresent(roles -> roles.forEach(r ->
+                        authorities.add(new SimpleGrantedAuthority("ROLE_" + r.toString().toUpperCase()))));
+
+        Optional.ofNullable(claims.get("groups"))
+                .map(o -> (Collection<?>) o)
+                .ifPresent(groups -> groups.forEach(g -> {
+                    String name = g.toString().replaceFirst("^/", "").replace('/', '_');
+                    authorities.add(new SimpleGrantedAuthority("GROUP_" + name.toUpperCase()));
+                }));
+
+        return authorities;
+    }
+
+    private Collection<GrantedAuthority> merge(
+            Collection<? extends GrantedAuthority> opAuthorities,
+            Collection<? extends GrantedAuthority> dbAuthorities) {
+        Set<GrantedAuthority> merged = new LinkedHashSet<>();
+        merged.addAll(opAuthorities);
+        merged.addAll(dbAuthorities);
+        return merged;
+    }
+}
+```
+
+> `parseKeycloakRoleClaims`は2つの`resolve`メソッドの内部実装として共有しているだけであり、公開マージAPIではない。どちらか一方だけクレーム解釈を変える必要が生じた場合は、該当`resolve`メソッド内だけを個別に変更する。
+
+### 3.3 経路A: OAuth2 Login
+
+```java
+public class AppOidcUser implements OidcUser, UserDetails {
+
+    private final OidcUser delegate;
+    private final UserDetails dbUserDetails;
+    private final Collection<? extends GrantedAuthority> mergedAuthorities;
+
+    @Override public Map<String, Object> getAttributes() { return delegate.getAttributes(); }
+    @Override public String getName() { return delegate.getName(); }
+    @Override public OidcIdToken getIdToken() { return delegate.getIdToken(); }
+    @Override public OidcUserInfo getUserInfo() { return delegate.getUserInfo(); }
+    @Override public Map<String, Object> getClaims() { return delegate.getClaims(); }
+
+    @Override public Collection<? extends GrantedAuthority> getAuthorities() { return mergedAuthorities; }
+
+    @Override public String getUsername() { return dbUserDetails.getUsername(); }
+    @Override public String getPassword() { return null; }
+    @Override public boolean isAccountNonExpired() { return dbUserDetails.isAccountNonExpired(); }
+    @Override public boolean isAccountNonLocked() { return dbUserDetails.isAccountNonLocked(); }
+    @Override public boolean isCredentialsNonExpired() { return dbUserDetails.isCredentialsNonExpired(); }
+    @Override public boolean isEnabled() { return dbUserDetails.isEnabled(); }
+}
+```
+
+```java
+@Service
+@RequiredArgsConstructor
+public class AppOidcUserService extends OidcUserService {
+
+    private final AppUserDetailsService appUserDetailsService;
+    private final AppAuthoritiesResolver appAuthoritiesResolver;
+
+    @Override
+    public OidcUser loadUser(OidcUserRequest userRequest) {
+        OidcUser oidcUser = super.loadUser(userRequest);
+        UserDetails dbUserDetails = appUserDetailsService.loadBySubject(oidcUser.getSubject(), oidcUser.getEmail());
+        Collection<GrantedAuthority> merged = appAuthoritiesResolver.resolve(oidcUser, dbUserDetails);
+        return new AppOidcUser(oidcUser, dbUserDetails, merged);
+    }
+}
+```
+
+`Authentication`はSpring標準の`OAuth2AuthenticationToken`をそのまま使う(principalに`AppOidcUser`が入るだけ)。
+
+```java
+http.oauth2Login(oauth2 -> oauth2
+        .userInfoEndpoint(userInfo -> userInfo.oidcUserService(appOidcUserService))
+);
+```
+
+### 3.4 経路B: Resource Server
+
+```java
+public class AppJwtPrincipal implements UserDetails {
+
+    private final Jwt jwt;
+    private final UserDetails dbUserDetails;
+    private final Collection<? extends GrantedAuthority> mergedAuthorities;
+
+    @Override public Collection<? extends GrantedAuthority> getAuthorities() { return mergedAuthorities; }
+    @Override public String getUsername() { return dbUserDetails.getUsername(); }
+    @Override public String getPassword() { return null; }
+    @Override public boolean isAccountNonExpired() { return dbUserDetails.isAccountNonExpired(); }
+    @Override public boolean isAccountNonLocked() { return dbUserDetails.isAccountNonLocked(); }
+    @Override public boolean isCredentialsNonExpired() { return dbUserDetails.isCredentialsNonExpired(); }
+    @Override public boolean isEnabled() { return dbUserDetails.isEnabled(); }
+
+    public Jwt getJwt() { return jwt; }
+}
+```
+
+```java
+public class AppJwtAuthenticationToken extends AbstractAuthenticationToken {
+
+    private final Jwt jwt;
+    private final AppJwtPrincipal principal;
+
+    public AppJwtAuthenticationToken(Jwt jwt, AppJwtPrincipal principal) {
+        super(principal.getAuthorities());
+        this.jwt = jwt;
+        this.principal = principal;
+        setAuthenticated(true);
+    }
+
+    @Override public Object getPrincipal() { return principal; }
+    @Override public Object getCredentials() { return jwt.getTokenValue(); }
+    public Jwt getJwt() { return jwt; }
+}
+```
+
+```java
+@Component
+@RequiredArgsConstructor
+public class AppJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
+
+    private final AppUserDetailsService appUserDetailsService;
+    private final AppAuthoritiesResolver appAuthoritiesResolver;
+
+    @Override
+    public AbstractAuthenticationToken convert(Jwt jwt) {
+        UserDetails dbUserDetails = appUserDetailsService.loadBySubject(jwt.getSubject(), jwt.getClaimAsString("email"));
+        Collection<GrantedAuthority> merged = appAuthoritiesResolver.resolve(jwt, dbUserDetails);
+        AppJwtPrincipal principal = new AppJwtPrincipal(jwt, dbUserDetails, merged);
+        return new AppJwtAuthenticationToken(jwt, principal);
+    }
+}
+```
+
+```java
+http.oauth2ResourceServer(oauth2 -> oauth2
+        .jwt(jwt -> jwt.jwtAuthenticationConverter(appJwtAuthenticationConverter))
+);
+```
+
+### 3.5 SecurityConfig(両経路の共存)
+
+```java
+http
+    .oauth2Login(oauth2 -> oauth2
+            .userInfoEndpoint(userInfo -> userInfo.oidcUserService(appOidcUserService))
+    )
+    .oauth2ResourceServer(oauth2 -> oauth2
+            .jwt(jwt -> jwt.jwtAuthenticationConverter(appJwtAuthenticationConverter))
+    );
+```
+
+### 3.6 ビジネスロジック側
+
+```java
+@GetMapping("/me")
+public MyPageResponse me(@AuthenticationPrincipal UserDetails principal) {
+    Collection<? extends GrantedAuthority> authorities = principal.getAuthorities();
+    // 経路A/Bどちらでも UserDetails として扱える
+}
+```
+
+`OidcUser`固有の情報(`getIdToken()`等)が必要な場合のみ`instanceof AppOidcUser`で分岐する。
 
 ---
 
-## 4. Keycloakロール と DBローカルロールのマージ(方針C)
-
-### 4.1 権限マージ方針の比較(検討時の整理)
-
-| 方針 | 概要 |
-|---|---|
-| A. Keycloak優先 | authoritiesはKeycloakのみ。DBはプロフィール情報のみ保持 |
-| B. DB優先 | Keycloakは認証のみ。authoritiesはDBの既存ロールテーブルから取得 |
-| **C. マージ(採用)** | KeycloakのAuthoritiesにDBの追加ロールを合成(和集合) |
-| D. 同期 | ログイン時にKeycloakのroles/groupsをDBへ同期し、DBから読む |
-
-→ 今回は **方針C**:Keycloak側の粗い権限(realm/client roles, groups)に、DBで細かく管理するアプリ固有ロールを追加する構成。
-
-### 4.2 DB設計
+## 4. DB設計(方針C)
 
 ```sql
 CREATE TABLE app_user (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    keycloak_sub VARCHAR(64) NOT NULL UNIQUE, -- Keycloakのsub(不変ID)。emailは変わりうるためキーにしない
+    keycloak_sub VARCHAR(64) NOT NULL UNIQUE,
     email VARCHAR(255),
     created_at TIMESTAMP
 );
@@ -117,165 +307,29 @@ CREATE TABLE app_user_local_authority (
 );
 ```
 
-**重要な設計原則**
-- `app_user_local_authority`は**Keycloak側(`ROLE_APP_ADMIN`等)と名前空間が被らない命名規約**にする
-  - 例: Keycloak由来 `ROLE_APP_ADMIN`, `GROUP_DEPT_A` / DB由来 `ROLE_SCREEN_A_EXPORT`, `ROLE_REPORT_DOWNLOAD`
-  - 混同すると「Keycloak側でロールを消したつもりがDB側の同名ロールで権限が生き残る」事故につながる
-- CIやアプリ起動時に命名規約違反(prefix衝突)を検知するバリデーションを入れると安全
+- `app_user_local_authority`はKeycloak側(`ROLE_APP_ADMIN`等)と名前空間が被らない命名規約にする
+  - Keycloak由来: `ROLE_APP_ADMIN`, `GROUP_DEPT_A` / DB由来: `ROLE_SCREEN_A_EXPORT`, `ROLE_REPORT_DOWNLOAD`
+- CIやアプリ起動時に命名規約違反(prefix衝突)を検知するバリデーションを推奨
 - 監査ログ用に`granted_by` / `granted_at`カラムを追加しておくと運用上便利
 
-### 4.3 マージ処理の実装(共通ロジック)
+---
 
-Keycloak由来のAuthoritiesとDBローカルAuthoritiesを取得し、和集合として合成する処理を**共通コンバータ**として1箇所にまとめ、OIDC Login方式・JWT Resource Server方式のどちらからも呼び出せるようにする。
+## 5. 運用上の注意点
 
-```java
-Collection<GrantedAuthority> keycloakAuthorities = authoritiesConverter.convert(claims);
-
-Collection<GrantedAuthority> localAuthorities = appUser.getLocalAuthorities().stream()
-        .map(SimpleGrantedAuthority::new)
-        .collect(Collectors.toList());
-
-Set<GrantedAuthority> merged = new LinkedHashSet<>();
-merged.addAll(keycloakAuthorities);
-merged.addAll(localAuthorities);
-```
-
-- ユーザー紐付けキーは **`sub`(Keycloakの不変ID)** を使用する(emailは変更されうるため)
-- 該当ユーザーがDBに存在しない場合はJIT(Just-In-Time) provisioningで新規作成する
+| 項目 | 内容 |
+|---|---|
+| DBアクセス頻度 | リクエスト毎に`AppUserDetailsService`経由でDB問い合わせが発生。高頻度アクセス時は`sub`キーの短TTLキャッシュ(Caffeine等)を検討 |
+| `sub`の不変性 | Keycloakでユーザー削除・再作成すると`sub`が変わり、JITで新規`AppUser`が作成される |
+| CSRF | 経路A(セッションCookie)はCSRF対策(`CookieCsrfTokenRepository`等)が必要。経路B(ステートレス)は対象外として除外設定が必要 |
+| 未認証時のレスポンス分岐 | `oauth2Login`と`oauth2ResourceServer`同居時、未認証リクエストへの挙動(302 vs 401)が競合する。`DelegatingAuthenticationEntryPoint`かパス単位の`SecurityFilterChain`分割で対応 |
+| ログアウト | セッション破棄に加え、Keycloak側セッション終了(end-sessionエンドポイント)が別途必要 |
 
 ---
 
-## 5. 認証方式ごとの実装(最終形:JWT Resource Server + セッション保持)
+## 6. 未決定事項
 
-当初はOIDC Login(`OidcUserService`)方式で検討したが、最終的な採用方式は **アクセストークンをJWTとして扱うResource Server構成**であり、かつ**アクセストークンをサーバ側セッションに保持し、`SecurityContextRepository`でリクエスト毎に復元する**方式(選択肢B)を採用。
-
-### 5.1 カスタムAuthentication型
-
-`JwtAuthenticationToken`は`principal`が素の`Jwt`になるため、`UserDetails`を持たせるには専用のAuthentication型を用意する。
-
-```java
-public class KeycloakAuthenticationToken extends AbstractAuthenticationToken {
-    private final Jwt jwt;
-    private final CustomUserPrincipal principal; // UserDetails実装
-
-    @Override
-    public Object getPrincipal() { return principal; }
-
-    @Override
-    public Object getCredentials() { return jwt.getTokenValue(); }
-
-    public Jwt getJwt() { return jwt; }
-}
-```
-
-```java
-public class CustomUserPrincipal implements UserDetails {
-    private final AppUser appUser;
-    private final Collection<? extends GrantedAuthority> authorities;
-    // UserDetailsメソッドはappUserベースで実装(getPassword()はnull)
-    public AppUser getAppUser() { return appUser; }
-}
-```
-
-- Resource Server構成のため`OidcUser`実装は不要(`IdToken`/`UserInfo`は関与しない)
-
-### 5.2 Jwt → Authentication 変換の共通化
-
-`Converter<Jwt, AbstractAuthenticationToken>`として実装し、**初回認証時(Authorizationヘッダ経由)** と **セッション復元時** の両方から共通利用する。
-
-```java
-@Component
-public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
-
-    @Override
-    @Transactional
-    public AbstractAuthenticationToken convert(Jwt jwt) {
-        // 1. sub でAppUserをJIT取得/作成
-        // 2. Keycloakクレームからauthorities変換
-        // 3. DBローカルauthoritiesを取得
-        // 4. 和集合でマージ
-        // 5. CustomUserPrincipal + KeycloakAuthenticationTokenを生成して返す
-    }
-}
-```
-
-```java
-http.oauth2ResourceServer(oauth2 -> oauth2
-        .jwt(jwt -> jwt.jwtAuthenticationConverter(keycloakJwtAuthenticationConverter))
-);
-```
-
-### 5.3 セッション保持の設計(選択肢Bの採用理由)
-
-| 選択肢 | 概要 | 評価 |
-|---|---|---|
-| A. 標準の`HttpSessionSecurityContextRepository` | 復元済み`Authentication`(=Authoritiesも含む)を丸ごとシリアライズしてセッション保存 | 実装は楽だが、JPAエンティティのSerializable対応が煩雑。ロール変更が再ログインまで反映されない |
-| **B. 生トークンのみセッション保持(採用)** | セッションにはアクセストークン文字列のみ保持し、リクエスト毎に`JwtDecoder`で再デコード→`KeycloakJwtAuthenticationConverter`で毎回Authoritiesを再構成 | Serializable対応不要。**Keycloak側・DB側どちらのロール変更も次のリクエストから即時反映**。セッションデータも小さい |
-
-**採用理由(選択肢B)**
-- セッションには生トークンだけを持たせるという設計意図に合致
-- Keycloak管理コンソールでのロール変更、DB側のローカルロール付与、いずれも次リクエストから即座に反映される
-- `AppUser`等のJPAエンティティをSerializable対応する必要がない
-
-### 5.4 `SecurityContextRepository`実装
-
-```java
-public class TokenSessionSecurityContextRepository implements SecurityContextRepository {
-
-    private static final String TOKEN_SESSION_KEY = "ACCESS_TOKEN";
-    private final JwtDecoder jwtDecoder;
-    private final Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter;
-
-    @Override
-    public SecurityContext loadContext(HttpServletRequestResponseHolder holder) {
-        // 1. セッションから生トークン取得(なければ空のSecurityContext)
-        // 2. jwtDecoder.decode()で署名・exp/nbf検証
-        // 3. jwtAuthenticationConverter.convert()でAuthentication再構成
-        // 4. JwtException時はセッションからトークンを除去
-    }
-
-    @Override
-    public void saveContext(SecurityContext context, HttpServletRequest request, HttpServletResponse response) {
-        // KeycloakAuthenticationTokenから生トークンを取り出しセッションに保存
-    }
-
-    @Override
-    public boolean containsContext(HttpServletRequest request) {
-        // セッション内トークンの有無を返す
-    }
-}
-```
-
-```java
-http.securityContext(sc -> sc.securityContextRepository(securityContextRepository));
-```
-
-> **補足(API注意点)**: Spring Security 6系の`SecurityContextRepository`は`loadContext(HttpServletRequestResponseHolder)`(旧API)と`loadDeferredContext(HttpServletRequest)`(新API)を持つが、新APIには旧`loadContext`を呼ぶデフォルト実装があるため、`loadContext`のみの実装でも動作する。警告を避けたい場合は`loadDeferredContext`を直接実装する形も検討可。
-
-### 5.5 リクエストフロー全体像
-
-1. **初回(Authorizationヘッダあり)**
-   `BearerTokenAuthenticationFilter` → `JwtAuthenticationProvider` → `KeycloakJwtAuthenticationConverter`で`KeycloakAuthenticationToken`生成 → `SecurityContextHolderFilter`が`saveContext()`で生トークンをセッション保存
-2. **2回目以降(セッションcookieのみ)**
-   `SecurityContextHolderFilter`が`loadContext()`呼び出し → セッション内の生トークンを`JwtDecoder`で再検証 → `KeycloakJwtAuthenticationConverter`でAuthorities再構成 → `SecurityContext`にセット
-
-この構成により、Authorizationヘッダの有無に関わらず一貫した`KeycloakAuthenticationToken`(`UserDetails`実装済み)がコンテキストに入る。
-
----
-
-## 6. 運用・パフォーマンス上の考慮事項
-
-- **DBアクセス頻度**: 選択肢Bはリクエスト毎にDB問い合わせが発生する。アクセス頻度が高い場合は`sub`をキーにした短TTLキャッシュ(Spring Cache + Caffeine等)を`KeycloakJwtAuthenticationConverter`のDB検索部分に導入することを検討
-- **トークン有効期限**: `JwtDecoder.decode()`が期限切れで例外を投げ、その時点で未認証扱いになる。リフレッシュトークンによる裏側再取得が必要な場合は、`loadContext`内の例外処理箇所やOAuth2AuthorizedClientManagerとの連携を別途設計する必要あり(未確定・要検討事項)
-- **CSRF対策**: セッションcookieベース認証に切り替えるため、フォーム認証時代のCSRF対策(`CookieCsrfTokenRepository`等)の継続適用が必要。ステートレスJWT(ヘッダ方式のみ)からの移行の場合は特に見落としやすい
-- **ログアウト**: サーバ側セッション破棄に加え、Keycloak側セッションも終了させる場合は別途end-sessionエンドポイント呼び出し処理が必要(未確定・要検討事項)
-- **`sub`の不変性**: Keycloakでユーザーを削除・再作成すると`sub`が変わり、JIT provisioningで新規`AppUser`が作成される点に注意。ユーザー統合が必要な場合はKeycloak側の運用ルールとセットで検討
-
----
-
-## 7. 未確定・今後の検討事項
-
-- リフレッシュトークンによるアクセストークン再取得フローの詳細設計
-- ログアウト時のKeycloakセッション終了処理(Front-Channel/Back-Channel Logout含む)
-- ローカルロール付与のための管理画面・API設計、および付与操作に対する`@PreAuthorize`等のアクセス制御
-- キャッシュ導入時のロール変更即時反映とのトレードオフ調整(TTL設計)
+- 未認証時のレスポンス分岐の実装方式(`DelegatingAuthenticationEntryPoint` か `SecurityFilterChain`分割か)
+- 経路Bにおけるアクセストークン期限切れ時の責務分担(呼び出し元での再取得が前提)
+- ログアウト時のKeycloakセッション終了処理(Front-Channel/Back-Channel Logout)
+- ローカルロール付与の管理画面・API設計、および付与操作へのアクセス制御
+- キャッシュ導入時のTTLと、ロール変更即時反映とのトレードオフ
